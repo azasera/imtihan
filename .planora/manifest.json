@@ -1,0 +1,89 @@
+{
+  "formatVersion": "1.0",
+  "packageDirectory": ".planora",
+  "project": {
+    "id": "e-imtihan-at-tauhid",
+    "name": "E-Imtihan At-Tauhid",
+    "locale": "id-ID"
+  },
+  "generatedDate": "2026-10-29",
+  "guideType": "ui",
+  "status": "ready",
+  "sourceVersions": {
+    "prd": "0.3",
+    "uiGuide": "0.3",
+    "executionPlan": "0.3"
+  },
+  "artifacts": {
+    "prd": {
+      "directory": "PRD",
+      "entry": "PRD/PRD.md",
+      "sourceVersion": "0.3",
+      "status": "ready"
+    },
+    "uiGuide": {
+      "directory": "UI",
+      "entry": "UI/README.md",
+      "sourceVersion": "0.3",
+      "status": "ready"
+    },
+    "executionPlan": {
+      "directory": "EXECUTION",
+      "entry": "EXECUTION/README.md",
+      "sourceVersion": "0.3",
+      "status": "ready"
+    }
+  },
+  "files": [
+    "EXECUTION/README.md",
+    "EXECUTION/TODO.md",
+    "EXECUTION/feature-order.md",
+    "EXECUTION/phases/phase-00-decisions.md",
+    "EXECUTION/phases/phase-01-bank-soal.md",
+    "EXECUTION/phases/phase-02-sesi-ujian.md",
+    "EXECUTION/phases/phase-03-ruang-ujian.md",
+    "EXECUTION/phases/phase-04-penilaian-rekap.md",
+    "EXECUTION/phases/phase-05-integrasi-santri.md",
+    "EXECUTION/phases/phase-06-cbt-enhancements.md",
+    "EXECUTION/release-readiness.md",
+    "PRD/PRD.md",
+    "PRD/README.md",
+    "PRD/asumsi-dan-pertanyaan.md",
+    "PRD/fitur/bank-soal.md",
+    "PRD/fitur/integrasi-santri.md",
+    "PRD/fitur/penilaian-dan-rekap.md",
+    "PRD/fitur/ruang-ujian-santri.md",
+    "PRD/fitur/sesi-ujian.md",
+    "PRD/metrik-keberhasilan.md",
+    "PRD/model-data.md",
+    "PRD/non-functional-requirements.md",
+    "PRD/roadmap.md",
+    "README.md",
+    "UI/README.md",
+    "UI/accessibility.md",
+    "UI/components/README.md",
+    "UI/content-guidelines.md",
+    "UI/design-direction.md",
+    "UI/foundations/README.md",
+    "UI/patterns/README.md",
+    "UI/screens/screen-inventory.md",
+    "manifest.json"
+  ],
+  "revisionHistory": [
+    {
+      "date": "2026-10-28",
+      "changed": "prd",
+      "fromVersion": "0.1",
+      "toVersion": "0.2",
+      "reason": "Penyesuaian gerbang masuk ujian santri dengan pilihan lembaga dan kelas dinamis"
+    },
+    {
+      "date": "2026-10-29",
+      "changed": "prd",
+      "fromVersion": "0.2",
+      "toVersion": "0.3",
+      "reason": "Adopsi fitur CBT lanjutan: tipe soal PG Kompleks & Benar/Salah, stimulus wacana, form Live Preview, tata letak 3-panel responsif, dan proteksi anti-curang dengan pencatatan pelanggaran tab"
+    }
+  ],
+  "openBlockers": []
+}

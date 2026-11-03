@@ -1,0 +1,9 @@
+
+# Local runtime secrets — never commit real values. Use .env.sample as the template.
+.env.local
+
+# Dependencies and build artifacts
+node_modules/
+.next/
+out/
+*.tsbuildinfo

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Planora Skill Architect"
+  short_description: "Design premium portable agent skill bundles."
+  default_prompt: "Use $planora-skill-architect to turn my workflow into a validated portable skill bundle."
+
+policy:
+  allow_implicit_invocation: false

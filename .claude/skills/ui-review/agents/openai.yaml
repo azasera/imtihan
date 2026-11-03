@@ -1,0 +1,6 @@
+interface:
+  display_name: "UI Review"
+  short_description: "Audit UI fidelity, states, and responsive craft"
+  default_prompt: "Use $ui-review to review this frontend change against its design contract."
+policy:
+  allow_implicit_invocation: true

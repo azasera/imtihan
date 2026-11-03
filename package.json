@@ -1,0 +1,28 @@
+{
+  "name": "next-convex-agent-starter",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "setup:check": "node scripts/setup.mjs --check",
+    "setup:deps": "npm --prefix apps ci",
+    "dev": "npm --prefix apps run dev",
+    "dev:web": "npm --prefix apps run dev:web",
+    "dev:convex": "npm --prefix apps run dev:convex",
+    "convex:init": "npm --prefix apps run convex:init",
+    "build": "npm --prefix apps run build",
+    "start": "npm --prefix apps run start",
+    "lint": "npm --prefix apps run lint",
+    "typecheck": "npm --prefix apps run typecheck",
+    "test": "npm --prefix apps run test",
+    "format": "npm --prefix apps run format",
+    "audit": "npm --prefix apps audit",
+    "check:template": "npm run lint && npm run typecheck && npm run test && npm run audit",
+    "check:app": "npm run check:template && npm run build",
+    "check": "npm run check:app"
+  },
+  "engines": {
+    "node": ">=20.9.0",
+    "npm": ">=10"
+  }
+}
