@@ -74,9 +74,12 @@ di deployment, lalu aktifkan `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` di `apps/.en
 npm run dev
 ```
 
-Perintah ini menjalankan `convex dev` dan `next dev` sekaligus. Buka
-`http://localhost:3000`; jika browser Anda tidak menampilkan halaman, gunakan
-`http://127.0.0.1:3000`.
+Perintah ini menjalankan `convex dev` dan `next dev` sekaligus. Selalu buka lewat
+`http://localhost:3000`. Alamat `http://127.0.0.1:3000` memang memuat halaman, tetapi
+login email-password akan ditolak dengan `INVALID_ORIGIN`, karena better-auth hanya
+memercayai origin yang sama dengan `SITE_URL` di deployment Convex (bawaannya
+`http://localhost:3000`). Kalau Anda perlu mengakses lewat IP, tambahkan origin tersebut
+ke konfigurasi auth, jangan ganti alamatnya di browser.
 
 | Perintah | Kegunaan |
 | --- | --- |

@@ -7,7 +7,7 @@
 - **Lingkungan**: Local development (`http://localhost:3000`) dengan Convex dev deployment
 
 ## Prasyarat
-1. Server lokal berjalan pada `http://127.0.0.1:3000` (pakai alamat IPv4 eksplisit; `localhost` resolve ke IPv6 sehingga koneksi ditolak automation).
+1. Server lokal berjalan dan dibuka lewat `http://localhost:3000`. Alamat `http://127.0.0.1:3000` juga memuat halaman dan tetap aman untuk gerbang santri (fungsi ini anonim), tetapi jangan dipakai bila alur pengujian menyentuh login pengajar — better-auth menolaknya dengan `INVALID_ORIGIN` (terverifikasi 2026-11-03).
 2. Minimal terdapat 1 sesi ujian dengan status `Sedang Aktif` dan memiliki token 6 digit yang valid (misal dari sesi yang dibuat di `TASK-004`).
 3. Sesi ujian tersebut sudah dipasangi bank soal berisi minimal 2 butir soal, agar lembar pengerjaan memiliki konten untuk ditampilkan.
 4. BukaDev browser pada mode jendela biasa (bukan device emulation) agar tata letak 3-panel teruji.

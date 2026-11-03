@@ -3,14 +3,14 @@
 - **Sumber Permintaan**: permintaan chore "perbaiki 7 error lint" (mengganti penyalinan state lewat efek dengan penurunan nilai saat render)
 - **Rekomendasi E2E**: `Recommended`
 - **Status**: `Pending` (Handoff untuk `/e2e-tester`)
-- **Lingkungan**: Local development (`http://127.0.0.1:3000`) dengan Convex dev deployment
+- **Lingkungan**: Local development (`http://localhost:3000`) dengan Convex dev deployment
 - **Alasan**: perubahan menyentuh state klien pada 5 layar, termasuk timer ujian dan pengumpulan otomatis yang tidak bisa dibuktikan dari tes sumber.
 
 ## Prasyarat
 
-1. Server lokal berjalan (`npm run dev`), buka lewat `http://127.0.0.1:3000` (bukan `localhost`, yang resolvernya IPv6 di mesin ini).
-2. Login pengajar uji `pengajar.uji@example.com` / `UjiDev2026`.
-3. Minimal satu sesi ujian **aktif** dengan token 6 karakter (tersedia: token `HH4XC2`, bank "Uji Integrasi CBT" berisi 2 butir).
+1. Server lokal berjalan (`npm run dev`). **Wajib** dibuka lewat `http://localhost:3000`: lewat `http://127.0.0.1:3000` halaman ter-render tetapi login pengajar ditolak better-auth dengan `INVALID_ORIGIN` (terbukti 2026-11-03).
+2. Login pengajar uji `pengajar.uji@example.com` / `UjiDev2026`. Alur login ini sudah terbukti lulus di browser (lihat Bukti).
+3. **Buat satu sesi ujian aktif lewat dialog "Jadwalkan Sesi Ujian"** (bank "Uji Integrasi CBT" berisi 2 butir). Sesi lama token `HH4XC2` dimiliki identitas seed CLI (`https://convex.test|-59396202`) sehingga **tidak tampil** untuk akun `pengajar.uji@example.com` — jangan mengandalkan token itu.
 4. Gunakan santri yang **belum** pernah masuk sesi itu. Santri uji `0119755229` sudah berstatus `submitted` di sesi `HH4XC2`, jadi pakai nomor lain dari master data dev, misalnya `26.02.001` (SMPITA kelas 7A). Untuk pengujian resume, santri yang sama harus dipakai dua kali.
 5. Konsol browser harus terbuka selama seluruh skenario; tidak boleh muncul error React.
 
@@ -60,3 +60,12 @@
 ## Bukti Eksekusi (Evidence)
 
 *(Akan dilengkapi saat /e2e-tester dijalankan)*
+
+### 2026-11-03 — prasyarat terverifikasi, skenario 1-7 belum
+
+- Login pengajar di browser nyata (`http://localhost:3000/login`): isi email + password, klik "Sign in with email", halaman berpindah sendiri ke `/account` dan terdapat teks "PROTECTED ACCOUNT" / "Your session was validated by the Convex Better Auth server before this page rendered."
+- Sesi bertahan saat pindah halaman: navigasi ke `/sesi-ujian` tetap dalam keadaan login (sidebar pengajar ter-render).
+- Penolakan kredensial salah (level API, origin `http://localhost:3000`): password salah dan email tak dikenal sama-sama `401 INVALID_EMAIL_OR_PASSWORD`.
+- Origin `http://127.0.0.1:3000`: `403 INVALID_ORIGIN` — karena itu prasyarat memakai `localhost`.
+- `/sesi-ujian` untuk akun ini kosong; sesi `HH4XC2` tercatat atas `creatorTokenIdentifier = https://convex.test|-59396202` (identitas seed CLI), sehingga tester harus membuat sesi baru.
+- Belum dibuktikan: skenario 1-7 (auto-fill gerbang santri, resume jawaban, hitung mundur sampai `00:00` dan pengumpulan otomatis, pelanggaran tab, default rekap nilai, prefill koreksi essay, perilaku dialog sesi).
