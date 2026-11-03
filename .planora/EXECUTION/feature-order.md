@@ -6,6 +6,7 @@ Rencana tahapan implementasi fitur berdasarkan dependensi teknis:
    - Menjadi dependensi mutlak karena sesi ujian memerlukan paket butir soal yang telah tersedia.
 2. **Sesi Ujian dan Token Akses**:
    - Mengatur parameter jadwal, durasi pengerjaan, dan generator token dari paket bank soal yang telah dibuat.
+   - Termasuk layar Monitoring Sesi Ujian pada menu utama pengajar (`CHG-001`) yang menampilkan status peserta per sesi; query backend daftar peserta sudah tersedia, jadi pekerjaan utamanya ada di antarmuka.
 3. **Ruang Ujian Santri (CBA Interface)**:
    - Menggunakan token ujian untuk memberikan akses pengerjaan soal dan perekaman jawaban santri.
 4. **Penilaian dan Rekapitulasi Nilai**:

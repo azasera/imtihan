@@ -9,6 +9,8 @@
 - NFR-SEC-001: Kunci jawaban tidak boleh dikirimkan ke browser santri sebelum santri resmi mengumpulkan lembar ujian.
 - NFR-SEC-002: Token ujian dienkripsi dan diverifikasi di sisi server untuk mencegah injeksi akses ilegal.
 - NFR-SEC-003: Seluruh data transmisi wajib menggunakan protokol HTTPS terenkripsi.
+- NFR-SEC-004: Sesi ujian, daftar peserta, monitoring, dan lembar koreksi hanya terlihat oleh pengajar yang memiliki sesi tersebut. Penanda identitas pengajar diambil dari sisi server, tidak pernah dari parameter yang dikirim browser.
+- NFR-SEC-005: Gerbang masuk ujian santri tetap dapat diakses tanpa akun login (nomor induk + token sesi). Fungsi yang melayani gerbang santri adalah satu-satunya pengecualian aturan autentikasi wajib dan harus terdaftar secara eksplisit sebagai pengecualian tersebut.
 
 ## Keandalan & Ketahanan
 - NFR-REL-001: Jika koneksi internet santri terputus sementara, browser tetap mempertahankan jawaban yang telah dipilih pada penyimpanan lokal perangkat.

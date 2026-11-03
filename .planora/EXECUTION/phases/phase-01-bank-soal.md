@@ -8,8 +8,8 @@ Fase 00 (Pondasi arsitektur dan skema database).
 
 ## Workflow eksekusi
 
-- `feature` — Implementasi skema tabel Bank Soal dan Butir Soal di Convex.
-- `feature` — Pembuatan antarmuka editor soal pengajar berbasis Shadcn UI.
+- `feature` — Implementasi skema tabel Bank Soal dan Butir Soal di Convex (`BANK-FR-001`, `BANK-FR-002`).
+- `feature` — Pembuatan antarmuka editor soal pengajar berbasis Shadcn UI (`BANK-FR-003`, `BANK-FR-004`).
 
 ## Kriteria keluar
 

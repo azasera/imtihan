@@ -8,8 +8,8 @@ Fase 01, Fase 03, & Fase 04 (Bank Soal, Ruang Ujian, dan Penilaian Rekap telah b
 
 ## Workflow eksekusi
 
-- `feature` — Skema butir soal lanjutan (`pg_kompleks`, `true_false`, stimulus) dan formulir bank soal dengan Live Preview.
-- `feature` — Ruang ujian 3-panel responsif, proteksi anti-curang (tab blur detection, clipboard blocker), auto-scoring soal lanjutan, dan badge pelanggaran tab di rekap nilai.
+- `feature` — Skema butir soal lanjutan (`pg_kompleks`, `true_false`, stimulus) dan formulir bank soal dengan Live Preview (`BANK-FR-005`, `BANK-FR-006`, `BANK-FR-007`).
+- `feature` — Ruang ujian 3-panel responsif, proteksi anti-curang (tab blur detection, clipboard blocker), auto-scoring soal lanjutan, dan badge pelanggaran tab di rekap nilai (`UJIAN-FR-008`, `UJIAN-FR-009`, `NILAI-FR-005`, `NILAI-FR-006`).
 
 ## Kriteria keluar
 

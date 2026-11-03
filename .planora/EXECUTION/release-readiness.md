@@ -30,6 +30,7 @@ Status setiap baris mengikuti bukti, bukan asumsi. Kunci status:
 - [ ] Tampilan responsif diuji pada resolusi desktop (1920x1080), laptop (1366x768), dan tablet (768x1024): belum pernah dijalankan.
 - [ ] Fitur penyimpanan otomatis (auto-save) tahan terhadap simulasi koneksi internet terputus: jalur galat ada di kode tetapi belum pernah disimulasikan.
 - [~] Fitur CBT lanjutan (tata letak 3-panel, PG Kompleks & Benar/Salah, stimulus wacana, pratinjau langsung, proteksi integritas anti-curang) terimplementasi; validasi perilakunya baru sampai level sumber dan backend.
+- [ ] Layar Monitoring Sesi Ujian (`SESI-FR-004`, `SESI-FR-005`) belum ada. Query daftar peserta sudah tersedia dan sudah dikunci per pengajar, tetapi hanya dipakai di halaman rekap nilai; pengawas tidak punya halaman pemantauan langsung saat ujian berjalan. Direncanakan sebagai `CHG-001`.
 
 ## Kualitas kode
 

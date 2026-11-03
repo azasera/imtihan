@@ -34,6 +34,7 @@ Pelaksanaan ujian konvensional berbasis kertas (paper-based test) di pesantren s
 - Manajemen Bank Soal (Mata Pelajaran, Pilihan Ganda, PG Kompleks, Benar/Salah, Essay, dan Stimulus Wacana/Media).
 - Live Preview formulir pembuatan butir soal santri secara real-time.
 - Manajemen Sesi Ujian (Jadwal, Durasi menit, Token Akses 6 karakter, Pengacakan).
+- Monitoring Sesi Ujian dari menu utama (daftar peserta per sesi, status sedang mengerjakan/selesai, waktu masuk dan pengumpulan, metrik pelanggaran tab, tautan koreksi).
 - Ruang Pengerjaan Ujian Santri 3-Panel Responsif (Login via NISN/NIS/ID Santri + Token, Panel Stimulus, Auto-save jawaban, Timer hitung mundur, Navigasi nomor soal).
 - Mekanisme Anti-Curang Integritas Ujian (Deteksi perpindahan tab, blokir shortcut DevTools, blokir copy-paste, dan pencatatan metrik pelanggaran tab).
 - Integrasi data santri nyata SiPAKSa iCentre Smart untuk lembaga SMPITA, SMAITA, dan MTA dengan pengecualian SD/TK.

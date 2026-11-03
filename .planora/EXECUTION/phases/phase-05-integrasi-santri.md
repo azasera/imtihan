@@ -8,8 +8,8 @@ Fase 02 & Fase 03 (Sesi Ujian dan Ruang Ujian Santri telah beroperasi).
 
 ## Workflow eksekusi
 
-- `feature` — Skema tabel `students` di Convex dan sinkronisasi API dari SiPAKSa.
-- `feature` — Antarmuka manajemen data santri pengajar dan pencocokan identitas di ruang ujian santri.
+- `feature` — Skema tabel `students` di Convex dan sinkronisasi API dari SiPAKSa (`SANTRI-FR-001`, `SANTRI-FR-002`).
+- `feature` — Antarmuka manajemen data santri pengajar dan pencocokan identitas di ruang ujian santri (`SANTRI-FR-003`, `SANTRI-FR-004`).
 
 ## Kriteria keluar
 

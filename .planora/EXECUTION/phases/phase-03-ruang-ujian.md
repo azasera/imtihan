@@ -8,8 +8,8 @@ Fase 02 (Sesi ujian dan token telah siap).
 
 ## Workflow eksekusi
 
-- `feature` — Pintu masuk login santri berbasis NISN + Token.
-- `feature` — Lembar ujian santri dengan timer hitung mundur dan auto-save real-time.
+- `feature` — Pintu masuk login santri berbasis NISN + Token (`UJIAN-FR-001`).
+- `feature` — Lembar ujian santri dengan timer hitung mundur dan auto-save real-time (`UJIAN-FR-002`, `UJIAN-FR-003`, `UJIAN-FR-004`, `UJIAN-FR-005`).
 
 ## Kriteria keluar
 

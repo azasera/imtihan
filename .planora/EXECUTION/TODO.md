@@ -144,9 +144,20 @@ Dokumen ini adalah ledger hidup untuk pelaksanaan bertahap. Perbarui pada saat p
   - Validasi: Ruang ujian menampilkan tata letak 3-panel responsif, perpindahan tab memicu peringatan keras dan menambah akumulasi counter pelanggaran tab di server, tombol klik kanan dan shortcut inspect diblokir, penilaian otomatis menghitung skor PG Kompleks dan Benar/Salah, serta kolom rekap nilai menampilkan badge pelanggaran tab santri.
   - Bukti: Terverifikasi dengan spec specs/task-012-exam-3panel-integrity.md, skema Convex tervalidasi via npx convex dev --once (Convex functions ready), implementasi tata letak 3-panel responsif & proteksi anti-curang di apps/app/ujian/ExamWorksheet.tsx, mutasi recordTabViolation & auto-scoring instan di apps/convex/examSession/public/mutations.ts, kolom badge pelanggaran tab dan ekspor CSV di apps/app/(main)/rekap-nilai/page.tsx, 59/59 unit tests passing (apps/tests/cbt-exam-3panel-integrity.test.ts), 0 TypeScript error (npm run typecheck), 0 kebocoran regex spesifikasi teknis di UI, dan spek E2E specs/e2e/cbt-exam-3panel-integrity.md.
 
+- [ ] `CHG-001` — Layar Monitoring Sesi Ujian pada menu utama pengajar
+  - Status: `pending`
+  - Workflow: `feature`
+  - Skill pendukung: `ui-design`, `ui-review`
+  - Fase: `phase-02`
+  - Requirements: `SESI-FR-004`, `SESI-FR-005`, `SESI-AC-004`, `SESI-AC-005`
+  - Pengalaman: `UI/screens/monitoring-sesi-ujian.md`
+  - Dependensi: `TASK-004`
+  - Validasi: Pengajar memilih sesi miliknya lalu melihat daftar peserta dengan status pengerjaan, waktu masuk dan pengumpulan, skor beserta status koreksi, badge jumlah pelanggaran tab, dan tombol buka koreksi; sesi milik pengajar lain dan pemanggil tanpa login hanya menghasilkan keadaan kosong; sidebar menampilkan satu entri menu baru tanpa mengubah rute yang sudah ada.
+  - Bukti: Belum dikerjakan.
+
 ## Blocker aktif
 
-Tidak ada blocker aktif saat ini. Seluruh pondasi autentikasi dan basis data telah siap.
+Menunggu keputusan produk: penautan sesi ujian ke satu jenjang dan kelas santri. Tanpa tautan itu, status "belum mulai" pada layar monitoring tidak dapat dihitung dan hanya santri yang sudah masuk yang dapat ditampilkan (lihat `PRD/asumsi-dan-pertanyaan.md`). Pekerjaan `CHG-001` tetap dapat dimulai untuk bagian daftar peserta, status, badge pelanggaran tab, dan tautan koreksi.
 
 ## Catatan keputusan
 

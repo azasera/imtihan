@@ -8,8 +8,8 @@ Fase 03 (Lembar jawaban santri telah terekam).
 
 ## Workflow eksekusi
 
-- `feature` — Algoritma kalkulasi nilai otomatis pilihan ganda.
-- `feature` — Antarmuka koreksi essay pengajar dan ekspor rekap nilai.
+- `feature` — Algoritma kalkulasi nilai otomatis pilihan ganda (`NILAI-FR-001`, `NILAI-FR-003`).
+- `feature` — Antarmuka koreksi essay pengajar dan ekspor rekap nilai (`NILAI-FR-002`, `NILAI-FR-004`).
 
 ## Kriteria keluar
 

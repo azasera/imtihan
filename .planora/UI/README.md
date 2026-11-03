@@ -11,3 +11,4 @@ Panduan desain antarmuka pengguna (UI/UX) untuk platform evaluasi E-Imtihan At-T
 - [Standar Komponen (Component Standards)](components/README.md)
 - [Pola Interaksi (Interaction Patterns)](patterns/README.md)
 - [Inventaris Screen (Screen Inventory)](screens/screen-inventory.md)
+- [Spesifikasi Layar Monitoring Sesi Ujian](screens/monitoring-sesi-ujian.md)

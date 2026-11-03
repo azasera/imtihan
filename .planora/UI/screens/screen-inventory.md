@@ -7,8 +7,8 @@ Daftar seluruh layar antarmuka pengguna pada platform E-Imtihan At-Tauhid.
 - **Layar Beranda / Dashboard**: Ringkasan jumlah bank soal aktif, jadwal ujian mendatang, dan daftar ujian yang perlu dikoreksi.
 - **Layar Bank Soal**: Tabel paket bank soal, filter mata pelajaran, dan tombol tambah paket soal baru.
 - **Layar Editor Soal**: Formulir split-view pembuatan soal pilihan ganda, PG kompleks, benar/salah, essay, input wacana stimulus dan media, serta panel Live Preview simulasi tampilan santri secara real-time.
-- **Layar Jadwal & Sesi Ujian**: Pengaturan tanggal ujian, batas durasi, tombol generate token, dan kontrol acak soal.
-- **Layar Monitoring Sesi Ujian**: Pemantauan real-time status santri yang sedang terhubung dan mengerjakan ujian.
+- **Layar Jadwal & Sesi Ujian** (`SESI-FR-001`, `SESI-FR-002`, `SESI-FR-003`): Pengaturan tanggal ujian, batas durasi, tombol generate token, dan kontrol acak soal.
+- **Layar Monitoring Sesi Ujian** (`SESI-FR-004`, `SESI-FR-005`): Menu pemantauan per sesi milik pengajar yang sedang login — daftar peserta dengan nama, nomor induk, kelas, status (sedang mengerjakan / selesai), waktu masuk dan pengumpulan, skor beserta status koreksi, badge jumlah pelanggaran tab, dan tautan langsung ke lembar koreksi. Detail pada [spesifikasi layar monitoring](monitoring-sesi-ujian.md).
 - **Layar Koreksi & Rekap Nilai**: Formulir penilaian essay santri dan tabel rekapitulasi nilai akhir kelas yang dilengkapi badge indikator pelanggaran tab santri.
 - **Layar Data Santri & Sinkronisasi SiPAKSa**: Daftar santri aktif per lembaga (SMP, SMA, MTA) dan tombol penarikan data sinkronisasi dari SiPAKSa.
 

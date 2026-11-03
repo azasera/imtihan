@@ -10,7 +10,7 @@ Paket perencanaan produk E-Imtihan At-Tauhid yang dibuat dengan Planora Product 
 
 ## Status
 
-Versi 0.3 — penyempurnaan fitur CBT (tipe soal PG Kompleks & Benar/Salah, stimulus wacana, form Live Preview, tata letak 3-panel responsif, dan proteksi anti-curang dengan pencatatan pelanggaran tab). Validasi manusia dan technical design tetap diperlukan sebelum implementasi.
+Versi 0.4 — menambahkan layar Monitoring Sesi Ujian pada menu utama pengajar (`SESI-FR-005`, `SESI-AC-004`, `SESI-AC-005`) beserta aturan isolasi data per pengajar dan pengecualian gerbang santri anonymous pada NFR keamanan. Item eksekusi `CHG-001` menunggu implementasi; keputusan penautan sesi ke daftar kelas santri masih terbuka. Validasi manusia dan technical design tetap diperlukan sebelum implementasi.
 
 ## Perintah agent
 

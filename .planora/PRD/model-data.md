@@ -15,9 +15,9 @@ Dokumen ini mendefinisikan entitas data konseptual untuk E-Imtihan At-Tauhid tan
 5. **OPSI_JAWABAN & KUNCI (AnswerOption)**
    - Atribut: opsi_id, soal_id, label_opsi (A/B/C/D), teks_opsi, is_kunci_jawaban (mendukung multi-kunci untuk pg_kompleks, atau boolean benar/salah untuk true_false).
 6. **SESI_UJIAN (ExamSession)**
-   - Atribut: sesi_id, bank_id, nama_sesi, token_akses, waktu_mulai, waktu_selesai, durasi_menit, acak_soal, status (draft/aktif/selesai).
+   - Atribut: sesi_id, bank_id, nama_sesi, token_akses, waktu_mulai, waktu_selesai, durasi_menit, acak_soal, status (draft/aktif/selesai), pemilik_sesi (penanda identitas pengajar pembuat sesi, dipakai untuk membatasi daftar sesi, monitoring, dan koreksi).
 7. **PESERTA_SESI (ExamParticipant)**
-   - Atribut: peserta_id, sesi_id, nisn, nama_santri, kelas, waktu_masuk, waktu_selesai, status_pengerjaan, jumlah_pelanggaran_tab (tab_violations).
+   - Atribut: peserta_id, sesi_id, nisn, nama_santri, kelas, waktu_masuk, waktu_selesai, status_pengerjaan (sedang mengerjakan/selesai), jumlah_pelanggaran_tab (tab_violations), skor_pilihan_ganda, skor_essay, skor_akhir, status_koreksi (menunggu essay/selesai).
 8. **LEMBAR_JAWABAN & NILAI (AnswerSheet)**
    - Atribut: lembar_id, peserta_id, question_id, selected_option_id, selected_option_ids (multi-opsi pg_kompleks), selected_boolean (true_false), jawaban_essay, is_ragu, skor_diperoleh.
 9. **SANTRI_MASTER (StudentMaster)**

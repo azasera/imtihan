@@ -6,32 +6,32 @@
     "name": "E-Imtihan At-Tauhid",
     "locale": "id-ID"
   },
-  "generatedDate": "2026-10-29",
+  "generatedDate": "2026-11-03",
   "guideType": "ui",
-  "status": "ready",
+  "status": "draft",
   "sourceVersions": {
-    "prd": "0.3",
-    "uiGuide": "0.3",
-    "executionPlan": "0.3"
+    "prd": "0.4",
+    "uiGuide": "0.4",
+    "executionPlan": "0.4"
   },
   "artifacts": {
     "prd": {
       "directory": "PRD",
       "entry": "PRD/PRD.md",
-      "sourceVersion": "0.3",
-      "status": "ready"
+      "sourceVersion": "0.4",
+      "status": "draft"
     },
     "uiGuide": {
       "directory": "UI",
       "entry": "UI/README.md",
-      "sourceVersion": "0.3",
-      "status": "ready"
+      "sourceVersion": "0.4",
+      "status": "draft"
     },
     "executionPlan": {
       "directory": "EXECUTION",
       "entry": "EXECUTION/README.md",
-      "sourceVersion": "0.3",
-      "status": "ready"
+      "sourceVersion": "0.4",
+      "status": "draft"
     }
   },
   "files": [
@@ -62,10 +62,14 @@
     "UI/README.md",
     "UI/accessibility.md",
     "UI/components/README.md",
+    "UI/components/ruang-ujian-dan-monitoring.md",
     "UI/content-guidelines.md",
     "UI/design-direction.md",
     "UI/foundations/README.md",
+    "UI/foundations/warna-dan-tipografi.md",
     "UI/patterns/README.md",
+    "UI/patterns/alur-ujian-dan-pemantauan.md",
+    "UI/screens/monitoring-sesi-ujian.md",
     "UI/screens/screen-inventory.md",
     "manifest.json"
   ],
@@ -83,7 +87,30 @@
       "fromVersion": "0.2",
       "toVersion": "0.3",
       "reason": "Adopsi fitur CBT lanjutan: tipe soal PG Kompleks & Benar/Salah, stimulus wacana, form Live Preview, tata letak 3-panel responsif, dan proteksi anti-curang dengan pencatatan pelanggaran tab"
+    },
+    {
+      "date": "2026-11-03",
+      "changed": "prd",
+      "fromVersion": "0.3",
+      "toVersion": "0.4",
+      "reason": "Menambah kebutuhan layar Monitoring Sesi Ujian dan aturan isolasi data per pengajar karena SESI-FR-004 belum punya permukaan antarmuka"
+    },
+    {
+      "date": "2026-11-03",
+      "changed": "ui",
+      "fromVersion": "0.3",
+      "toVersion": "0.4",
+      "reason": "Menambah spesifikasi layar monitoring, entri sidebar, dan komponen badge status peserta"
+    },
+    {
+      "date": "2026-11-03",
+      "changed": "execution",
+      "fromVersion": "0.3",
+      "toVersion": "0.4",
+      "reason": "Menambah CHG-001 sebagai item eksekusi layar monitoring dan melengkapi referensi kebutuhan pada dokumen fase"
     }
   ],
-  "openBlockers": []
+  "openBlockers": [
+    "Keputusan produk terbuka: sesi ujian belum ditautkan ke jenjang dan kelas santri, sehingga status 'belum mulai' pada layar monitoring belum dapat dihitung (PRD/asumsi-dan-pertanyaan.md)."
+  ]
 }
