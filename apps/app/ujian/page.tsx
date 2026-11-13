@@ -2,48 +2,29 @@
 
 import * as React from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { useMutation, useQuery } from "convex/react"
 import {
   AlertCircleIcon,
-  AlertTriangleIcon,
-  BookOpenIcon,
-  Building2Icon,
+  ArrowLeftIcon,
   CheckCircle2Icon,
   ClockIcon,
-  GraduationCapIcon,
-  KeyRoundIcon,
-  LayersIcon,
   Loader2Icon,
-  LockIcon,
   PlayIcon,
-  SchoolIcon,
   ShieldCheckIcon,
-  SparklesIcon,
-  UserIcon,
+  UserCheck2Icon,
+  XCircleIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { authClient } from "@/lib/auth-client"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { AT_TAUHID_WATERMARK_BASE64 } from "@/lib/watermark-asset"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { cleanStudentName } from "@/lib/rapor-utils"
 import { ExamWorksheet } from "./ExamWorksheet"
 
 interface VerifiedSession {
@@ -72,135 +53,270 @@ interface ParticipantSession {
   isResumed: boolean
 }
 
-type LembagaType = "SMPITA" | "SMAITA" | "MTA" | ""
+const BAD_CHARS = /[^ABCDEFGHJKMNPQRSTUVWXYZ234567890-9]/g
+
+/**
+ * Membersihkan pesan error internal dari server/Convex agar user-friendly
+ * dan tidak membocorkan prefix teknis seperti [CONVEX ...], Server Error, dsb.
+ */
+function cleanErrorMessage(error: unknown, fallback = "Terjadi kesalahan saat memproses data."): string {
+  if (!error) return fallback
+  const raw = typeof error === "string" ? error : (error as Error).message || fallback
+
+  // Ekstrak pesan murni setelah 'Uncaught Error:' jika ada
+  const uncaughtMatch = raw.match(/Uncaught Error:\s*([^\n\r]+)/i)
+  if (uncaughtMatch && uncaughtMatch[1]) {
+    return uncaughtMatch[1].replace(/\.?\s*Called by client.*$/i, ".").trim()
+  }
+
+  // Bersihkan prefix umum Convex & Server Error
+  return (
+    raw
+      .replace(/^\[CONVEX[^\]]*\]\s*/i, "")
+      .replace(/^\[Request ID:[^\]]*\]\s*/i, "")
+      .replace(/^Server Error\s*/i, "")
+      .replace(/^Error:\s*/i, "")
+      .replace(/\.?\s*Called by client.*$/i, ".")
+      .trim() || fallback
+  )
+}
+
+
 
 export default function StudentExamEntryPage() {
-  // 1. Nomor Induk Santri (NISN / NIS / ID Santri)
+  const { data: session } = authClient.useSession()
+
+  // State tampilan bertahap:
+  // step = 1 -> Form login (Nomor Induk + Token)
+  // step = 2 -> Konfirmasi Data Santri (Benar vs Bukan Data Saya)
+  // step = 3 -> Siap Memulai (Instruksi & Mulai Ujian)
+  const [step, setStep] = React.useState<1 | 2 | 3>(1)
+
+  // Input formulir
   const [nisn, setNisn] = React.useState("")
-  // 2. Pilih Lembaga (SMPITA, SMAITA, MTA)
-  const [institutionInput, setInstitutionInput] = React.useState<LembagaType>("")
-  // 3. Pilih Kelas (Dinamis bergantung lembaga)
-  const [classNameInput, setClassNameInput] = React.useState("")
-  // 4. Nama Lengkap Santri
-  const [studentNameInput, setStudentNameInput] = React.useState("")
-  // 5. Token Ujian 6 Karakter
   const [token, setToken] = React.useState("")
 
+  // Proteksi percobaan salah (rate limiting lokal)
+  const [failedAttempts, setFailedAttempts] = React.useState(0)
+  const [isLocked, setIsLocked] = React.useState(false)
+
+  // Status submisi & sesi
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [submitError, setSubmitError] = React.useState<string | null>(null)
   const [enteredSession, setEnteredSession] = React.useState<ParticipantSession | null>(null)
   const [isExamStarted, setIsExamStarted] = React.useState(false)
+
+  // Jam perangkat di bilah atas
+  const [currentTime, setCurrentTime] = React.useState<string>("")
+  React.useEffect(() => {
+    const updateTime = () => {
+      try {
+        const now = new Date()
+        setCurrentTime(
+          now.toLocaleString("id-ID", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        )
+      } catch {
+        // Fallback jika locale id-ID belum siap
+        setCurrentTime(new Date().toLocaleTimeString())
+      }
+    }
+    updateTime()
+    const interval = setInterval(updateTime, 20000)
+    return () => clearInterval(interval)
+  }, [])
 
   const enterSession = useMutation(api.examSession.public.mutations.enterExamSession)
 
   const cleanToken = token.trim().toUpperCase()
+  const cleanNisn = nisn.trim()
 
   // Auto-lookup master data santri berdasarkan nomor identitas (NISN, NIS, atau ID Santri SiPAKSa)
   const lookedUpStudent = useQuery(
     api.students.public.queries.lookupStudent,
-    nisn.trim().length >= 3 ? { identifier: nisn.trim() } : "skip"
+    cleanNisn.length >= 3 ? { identifier: cleanNisn } : "skip"
   )
 
-  // Master data menang atas isian manual selama nomor induk cocok, jadi ketiga
-  // fields ini diturunkan langsung tanpa efek sinkronisasi.
-  const institution = lookedUpStudent?.jenjang || institutionInput
-  const className = lookedUpStudent?.kelas || classNameInput
-  const studentName = lookedUpStudent?.nama || studentNameInput
+  // Ambil 2 angka terakhir nomor identitas santri untuk validasi token
+  const expectedStudentDigits = React.useMemo(() => {
+    if (lookedUpStudent && "twoDigits" in lookedUpStudent && typeof lookedUpStudent.twoDigits === "string") {
+      return lookedUpStudent.twoDigits
+    }
+    const digits = cleanNisn.replace(/\D/g, "")
+    return digits.length >= 2 ? digits.slice(-2) : ""
+  }, [lookedUpStudent, cleanNisn])
 
-  // Mengambil daftar kelas resmi dari database yang sesuai dengan lembaga yang dipilih
-  const availableClasses = useQuery(
-    api.students.public.queries.getClassesByLembaga,
-    institution ? { jenjang: institution as "SMPITA" | "SMAITA" | "MTA" } : "skip"
-  )
-
-  // Pergantian lembaga wajib mengosongkan pilihan kelas sebelumnya
-  const handleInstitutionChange = (newVal: LembagaType | null) => {
-    const nextInstitution = (newVal ?? "") as LembagaType
-    setInstitutionInput(nextInstitution)
-    setClassNameInput("") // Kosongkan pilihan kelas sebelumnya
-  }
-
-  // Verifikasi token 6 digit secara real-time via Convex query
+  // Verifikasi token sesi (hanya 6 karakter awal token sesi yang dikirim ke query)
   const sessionVerification = useQuery(
     api.examSession.public.queries.verifySessionToken,
-    cleanToken.length === 6 ? { token: cleanToken } : "skip"
+    cleanToken.length >= 6 ? { token: cleanToken.slice(0, 6) } : "skip"
   ) as VerifiedSession | undefined
 
   const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Otomatis uppercase dan batasi maksimal 6 karakter alfanumerik
-    const upper = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6)
+    // Batasi maksimal 8 karakter (6 token sesi + 2 digit santri)
+    const upper = e.target.value.toUpperCase().replace(BAD_CHARS, "").slice(0, 8)
     setToken(upper)
+    if (submitError) setSubmitError(null)
   }
 
-  const handleEnterExam = async (e: React.FormEvent) => {
+  // Langkah 1 -> Langkah 2 (Validasi Form & Periksa Data)
+  const handleProceedToConfirm = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!nisn.trim()) {
-      toast.error("Nomor Induk Santri (NISN / NIS / ID Santri) wajib diisi.")
+    if (isLocked) {
+      toast.error("Akses dikunci sementara karena terlalu banyak percobaan. Hubungi pengawas.")
       return
     }
 
-    if (!institution) {
-      toast.error("Silakan pilih lembaga pendidikan (SMPITA, SMAITA, atau MTA).")
+    if (!cleanNisn) {
+      toast.error("Nomor Induk Santri (NISN / NIS / ID Santri) belum diisi.")
       return
     }
 
-    if (!className.trim()) {
-      toast.error("Silakan pilih kelas santri yang sesuai.")
+    if (cleanNisn.length >= 3 && lookedUpStudent === undefined) {
+      toast.info("Sedang memeriksa nomor induk santri, mohon tunggu sebentar.")
       return
     }
 
-    if (!studentName.trim()) {
-      toast.error("Nama lengkap santri wajib diisi.")
+    if (lookedUpStudent === null) {
+      const nextFailed = failedAttempts + 1
+      setFailedAttempts(nextFailed)
+      if (nextFailed >= 5) {
+        setIsLocked(true)
+        setSubmitError("Terlalu banyak percobaan. Akses Anda dikunci sementara, hubungi pengawas ruang.")
+      } else {
+        setSubmitError(
+          `Nomor Induk Santri tidak ditemukan dalam basis data pesantren. Pastikan nomor induk Anda benar atau hubungi pengawas. (Sisa percobaan: ${5 - nextFailed})`
+        )
+      }
+      toast.error("Nomor Induk Santri tidak ditemukan dalam basis data pesantren.")
       return
     }
 
-    if (cleanToken.length !== 6) {
-      toast.error("Token ujian harus terdiri dari 6 karakter alfanumerik.")
+    if (cleanToken.length < 8) {
+      toast.error("Token ujian belum lengkap (harus 8 karakter: 6 huruf token sesi + 2 angka nomor induk).")
+      setSubmitError(
+        "Token ujian belum lengkap. Masukkan 6 huruf token sesi diikuti 2 angka terakhir nomor induk Anda."
+      )
+      return
+    }
+
+    // Validasi kecocokan 2 digit terakhir token dengan nomor induk santri
+    if (expectedStudentDigits && cleanToken.length === 8) {
+      const suppliedDigits = cleanToken.slice(6, 8)
+      if (suppliedDigits !== expectedStudentDigits) {
+        const nextFailed = failedAttempts + 1
+        setFailedAttempts(nextFailed)
+        const msg =
+          "2 angka terakhir token tidak cocok dengan nomor induk santri Anda. Pastikan memasukkan 6 huruf token sesi diikuti 2 angka terakhir nomor identitas Anda."
+        if (nextFailed >= 5) {
+          setIsLocked(true)
+          setSubmitError("Terlalu banyak percobaan yang gagal. Akses dikunci sementara, hubungi pengawas ruang.")
+        } else {
+          setSubmitError(`${msg} (Sisa percobaan: ${5 - nextFailed})`)
+        }
+        toast.error(msg)
+        return
+      }
+    }
+
+    if (sessionVerification === undefined) {
+      toast.info("Sedang memverifikasi token sesi, mohon tunggu beberapa saat.")
       return
     }
 
     if (sessionVerification && !sessionVerification.valid) {
-      toast.error(sessionVerification.message || "Token ujian tidak valid.")
+      const nextFailed = failedAttempts + 1
+      setFailedAttempts(nextFailed)
+      const cleanMsg = cleanErrorMessage(sessionVerification.message, "Token ujian tidak valid.")
+      if (nextFailed >= 5) {
+        setIsLocked(true)
+        setSubmitError("Terlalu banyak percobaan. Akses Anda dikunci sementara, hubungi pengawas ruang.")
+      } else {
+        setSubmitError(`${cleanMsg} (Sisa percobaan: ${5 - nextFailed})`)
+      }
+      toast.error(cleanMsg)
       return
     }
 
+    setSubmitError(null)
+    setStep(2)
+  }
+
+  // Langkah 2 -> Langkah 3 (Santri Konfirmasi "Benar, masuk ruang ujian")
+  const handleConfirmAndEnter = async () => {
     setIsSubmitting(true)
+    setSubmitError(null)
     try {
       const result = await enterSession({
         token: cleanToken,
-        nisn: nisn.trim(),
-        studentName: studentName.trim(),
-        institution: institution as "SMPITA" | "SMAITA" | "MTA",
-        className: className.trim(),
+        nisn: cleanNisn,
+        studentName: cleanStudentName(lookedUpStudent?.nama || cleanNisn),
+        institution: lookedUpStudent?.jenjang as "SMPITA" | "SMAITA" | "MTA" | undefined,
+        className: lookedUpStudent?.kelas,
       })
 
       setEnteredSession(result)
+      setFailedAttempts(0)
       if (result.isResumed) {
         toast.info("Melanjutkan kembali sesi ujian Anda yang sedang berlangsung.")
       } else {
-        toast.success("Berhasil masuk ke ruang ujian! Silakan baca instruksi berikut.")
+        toast.success("Identitas terkonfirmasi! Silakan bersiap memulai ujian.")
       }
+      setStep(3)
     } catch (err: unknown) {
-      const error = err as Error
-      toast.error(error.message || "Gagal masuk ke sesi ujian.")
+      const msg = cleanErrorMessage(err, "Gagal masuk ke sesi ujian.")
+      const nextFailed = failedAttempts + 1
+      setFailedAttempts(nextFailed)
+      if (nextFailed >= 5) {
+        setIsLocked(true)
+        setSubmitError("Terlalu banyak percobaan yang gagal. Akses dikunci sementara, hubungi pengawas ruang.")
+      } else {
+        setSubmitError(`${msg} (Sisa percobaan: ${5 - nextFailed})`)
+      }
+      toast.error(msg)
+      setStep(1)
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // Gabungkan kelas dari database dengan kelas santri terverifikasi jika cocok.
-  // Wajib berada di atas early return di bawah agar urutan hook konsisten tiap render.
-  const combinedClasses: string[] = React.useMemo(() => {
-    const list = availableClasses ? [...availableClasses] : []
-    if (lookedUpStudent?.kelas && lookedUpStudent?.jenjang === institution) {
-      if (!list.includes(lookedUpStudent.kelas)) {
-        list.unshift(lookedUpStudent.kelas)
-      }
-    }
-    return list
-  }, [availableClasses, lookedUpStudent, institution])
+  // Langkah 2: Santri menekan "Bukan data saya"
+  const handleRejectData = () => {
+    setToken("")
+    setSubmitError("Jika data tadi bukan milik Anda, pastikan nomor induk yang Anda ketik sudah benar atau tanyakan kepada pengawas ruang.")
+    setStep(1)
+  }
 
-  // Jika santri sudah menekan tombol mulai, tampilkan lembar pengerjaan soal langsung
+  // Keterangan alasan tombol disabled di langkah 1
+  const disabledReason = React.useMemo(() => {
+    if (isLocked) return "Akses dikunci sementara. Hubungi pengawas."
+    if (!cleanNisn) return "Nomor induk belum diisi."
+    if (cleanNisn.length >= 3 && lookedUpStudent === undefined) return "Memeriksa identitas santri..."
+    if (cleanNisn.length >= 3 && lookedUpStudent === null) return "Nomor induk tidak ditemukan."
+    if (cleanToken.length < 8) {
+      return `Token belum lengkap (${cleanToken.length}/8 karakter)`
+    }
+    if (
+      expectedStudentDigits &&
+      cleanToken.length === 8 &&
+      cleanToken.slice(6, 8) !== expectedStudentDigits
+    ) {
+      return "2 angka terakhir token tidak cocok dengan nomor induk Anda."
+    }
+    if (sessionVerification && !sessionVerification.valid) {
+      return cleanErrorMessage(sessionVerification.message, "Token ujian tidak valid.")
+    }
+    return null
+  }, [isLocked, cleanNisn, lookedUpStudent, cleanToken, sessionVerification, expectedStudentDigits])
+
+  // Jika santri sudah menekan tombol "Mulai ujian" di langkah 3, buka lembar soal
   if (isExamStarted && enteredSession) {
     return (
       <ExamWorksheet
@@ -208,391 +324,388 @@ export default function StudentExamEntryPage() {
         onExit={() => {
           setEnteredSession(null)
           setIsExamStarted(false)
+          setStep(1)
         }}
       />
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-950/10 via-background to-muted/30 flex flex-col items-center justify-center p-4 sm:p-6 md:p-10">
-      {/* Brand Header dengan Palet Hijau Zamrud & Sentuhan Aksen Emas */}
-      <div className="flex flex-col items-center text-center mb-6 space-y-2">
-        <div className="relative size-16 sm:size-20 mb-1 drop-shadow-sm flex items-center justify-center">
-          <Image
-            src="/logo.png"
-            alt="Logo E-Imtihan At-Tauhid"
-            width={80}
-            height={80}
-            className="object-contain w-16 h-16 sm:w-20 sm:h-20"
-            priority
-          />
+    <div className="min-h-screen bg-[#f2f3f1] dark:bg-[#101412] text-[#1b1f1c] dark:text-[#e6ebe7] flex flex-col justify-between font-sans selection:bg-emerald-700 selection:text-white relative overflow-x-hidden">
+      {/* Pola Latar Belakang Watermark Resmi (Sesuai Referensi HTML) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none select-none dark:invert dark:opacity-[0.1]"
+        style={{
+          position: "fixed",
+          top: "-50%",
+          left: "-50%",
+          width: "200%",
+          height: "200%",
+          zIndex: 0,
+          backgroundImage: `url("${AT_TAUHID_WATERMARK_BASE64}")`,
+          backgroundPosition: "0 0",
+          backgroundSize: "120px 120px",
+          backgroundRepeat: "repeat",
+          opacity: 0.08,
+          transform: "rotate(-18deg)",
+        }}
+      />
+
+      {/* Header Bar Resmi */}
+      <header className="relative z-10 bg-white dark:bg-[#181d1a] border-b border-[#cfd5cf] dark:border-[#323a34]">
+        <div className="max-w-[920px] mx-auto px-5 py-3 flex items-center gap-3.5">
+          <div className="relative size-11 shrink-0 drop-shadow-sm flex items-center justify-center">
+            <Image
+              src="/logo.png"
+              alt="Logo e-IMTIHAN At-Tauhid"
+              width={44}
+              height={44}
+              className="object-contain size-11"
+              priority
+            />
+          </div>
+          <div className="leading-tight">
+            <b className="block text-base tracking-tight font-bold text-[#1b1f1c] dark:text-[#e6ebe7]">
+              e-IMTIHAN
+            </b>
+            <span className="text-[13px] text-[#5f675f] dark:text-[#9aa49c]">
+              Pesantren Islamic Centre At-Tauhid
+            </span>
+          </div>
+
+          {/* Jam Waktu Perangkat */}
+          {currentTime && (
+            <time className="ml-auto text-[13px] text-[#5f675f] dark:text-[#9aa49c] hidden sm:block tabular-nums font-medium">
+              {currentTime}
+            </time>
+          )}
+
+          {/* Akses Cepat Guru jika sedang login */}
+          {session?.user && (
+            <div className="ml-auto sm:ml-4 flex items-center gap-2">
+              <Badge variant="outline" className="hidden sm:inline-flex text-[11px] font-medium border-emerald-700/40 text-emerald-800 dark:text-emerald-300">
+                Mode Pengajar
+              </Badge>
+              <Link
+                href="/sesi-ujian"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border border-emerald-700/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+              >
+                <ArrowLeftIcon className="size-3" />
+                <span>Kembali ke Dashboard</span>
+              </Link>
+            </div>
+          )}
         </div>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-          <SparklesIcon className="size-3 text-amber-500 fill-amber-500" />
-          <span>Pesantren Islamic Centre At-Tauhid</span>
-        </div>
-        <h1 className="text-xl sm:text-2xl font-bold font-heading tracking-tight text-emerald-950 dark:text-emerald-100">
-          Ruang Ujian Santri
-        </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground max-w-md">
-          Gerbang Ujian Berbasis Komputer (CBA) Pesantren At-Tauhid. Lengkapi nomor induk, lembaga, kelas resmi, dan token ujian Anda.
-        </p>
+      </header>
+
+      {/* Kontainer Utama 2 Kolom (Sesuai Referensi HTML) */}
+      <div className="max-w-[920px] w-full mx-auto my-6 sm:my-8 px-5 grid grid-cols-1 md:grid-cols-[1fr_380px] gap-8 md:gap-10 items-start relative z-10">
+        {/* Panel Kiri: Form & Wizard */}
+        <main className="bg-white dark:bg-[#181d1a] border border-[#cfd5cf] dark:border-[#323a34] rounded p-6 sm:p-7 shadow-xs">
+          {/* Banner Peringatan Error / Gagal */}
+          {submitError && (
+            <div
+              className="mb-4 p-3.5 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900 rounded-lg text-sm flex items-start gap-2.5 shadow-2xs"
+              role="alert"
+            >
+              <AlertCircleIcon className="size-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+              <div className="leading-relaxed text-[13px] font-medium">{submitError}</div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* TAHAP 1: INPUT NOMOR INDUK & TOKEN UJIAN                        */}
+          {/* ============================================================== */}
+          {step === 1 && (
+            <section id="v1">
+              <h1 className="text-xl sm:text-[22px] font-bold text-[#1b1f1c] dark:text-[#e6ebe7] mb-1">
+                Masuk ujian
+              </h1>
+              <p className="text-sm text-[#5f675f] dark:text-[#9aa49c] mb-5">
+                Masukkan nomor induk dan token dari pengawas.
+              </p>
+
+              <form onSubmit={handleProceedToConfirm} suppressHydrationWarning autoComplete="off">
+                {/* 1. Nomor Induk Santri */}
+                <div className="mb-4">
+                  <label htmlFor="nisn" className="block font-semibold text-sm mb-1.5">
+                    Nomor induk santri
+                  </label>
+                  <Input
+                    id="nisn"
+                    name="nisn"
+                    autoComplete="off"
+                    data-1p-ignore="true"
+                    placeholder="Contoh: 24.02.001 atau NISN"
+                    value={nisn}
+                    onChange={(e) => {
+                      setNisn(e.target.value)
+                      if (submitError) setSubmitError(null)
+                    }}
+                    disabled={isLocked}
+                    className="w-full text-sm font-mono px-3 py-2 border border-[#8d978f] dark:border-[#4a554c] rounded focus-visible:outline-2 focus-visible:outline-emerald-800"
+                    required
+                  />
+                  <div className="text-xs text-[#5f675f] dark:text-[#9aa49c] mt-1">
+                    NISN, NIS, atau ID santri pada kartu peserta.
+                  </div>
+                  {lookedUpStudent && (
+                    <div className="mt-2 text-xs text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 p-2.5 rounded space-y-1">
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-700" />
+                        <span>
+                          Santri Terverifikasi: <strong>{cleanStudentName(lookedUpStudent.nama)}</strong> ({lookedUpStudent.jenjang} - {lookedUpStudent.kelas})
+                        </span>
+                      </div>
+                      <div className="text-[11.5px] text-emerald-900/80 dark:text-emerald-200/80 pl-5">
+                        Gunakan 2 angka terakhir NISN Anda pada 2 karakter terakhir token ujian.
+                      </div>
+                    </div>
+                  )}
+                  {cleanNisn.length >= 3 && lookedUpStudent === undefined && (
+                    <div className="mt-2 text-xs text-[#5f675f] dark:text-[#9aa49c] flex items-center gap-1.5">
+                      <Loader2Icon className="size-3.5 shrink-0 animate-spin text-emerald-700" />
+                      <span>Memeriksa nomor induk di basis data...</span>
+                    </div>
+                  )}
+                  {cleanNisn.length >= 3 && lookedUpStudent === null && (
+                    <div className="mt-2 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 p-2 rounded flex items-center gap-1.5">
+                      <AlertCircleIcon className="size-3.5 shrink-0 text-amber-600" />
+                      <span>
+                        Nomor induk tidak ditemukan dalam data santri pesantren.
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Token Ujian */}
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label htmlFor="token" className="block font-semibold text-sm">
+                      Token ujian
+                    </label>
+                    <span className="text-xs font-mono text-[#5f675f] dark:text-[#9aa49c]">
+                      {cleanToken.length}/8 karakter
+                    </span>
+                  </div>
+                  <Input
+                    id="token"
+                    name="token"
+                    maxLength={8}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    data-1p-ignore="true"
+                    placeholder="Misal: 7K2M3P"
+                    value={token}
+                    onChange={handleTokenChange}
+                    disabled={isLocked}
+                    className="w-full font-mono text-lg tracking-[0.25em] text-center uppercase py-5 border border-[#8d978f] dark:border-[#4a554c] rounded placeholder:tracking-normal placeholder:font-normal placeholder:text-muted-foreground/35 focus-visible:outline-2 focus-visible:outline-emerald-800"
+                    required
+                  />
+                  <div className="text-xs text-[#5f675f] dark:text-[#9aa49c] mt-1.5 leading-relaxed">
+                    6 huruf token dari pengawas + 2 angka terakhir nomor induk Anda. Huruf O, I, L dan angka 0, 1 tidak dipakai pada token sesi.
+                  </div>
+                </div>
+
+                {/* Tombol Lanjut */}
+                <Button
+                  type="submit"
+                  disabled={
+                    isLocked ||
+                    cleanNisn.length < 3 ||
+                    cleanToken.length < 8 ||
+                    lookedUpStudent === undefined ||
+                    lookedUpStudent === null ||
+                    (sessionVerification !== undefined && !sessionVerification.valid) ||
+                    Boolean(
+                      expectedStudentDigits &&
+                        cleanToken.length === 8 &&
+                        cleanToken.slice(6, 8) !== expectedStudentDigits
+                    )
+                  }
+                  className="w-full font-semibold py-2.5 px-3.5 bg-[#0b4a2a] hover:bg-[#093a21] disabled:bg-[#0b4a2a]/40 text-white rounded transition-colors text-sm"
+                >
+                  Lanjut
+                </Button>
+
+                {disabledReason && (
+                  <div className="text-xs text-[#5f675f] dark:text-[#9aa49c] mt-2.5 text-center">
+                    {disabledReason}
+                  </div>
+                )}
+              </form>
+            </section>
+          )}
+
+          {/* ============================================================== */}
+          {/* TAHAP 2: PERIKSA DATA ANDA (BENAR vs BUKAN DATA SAYA)           */}
+          {/* ============================================================== */}
+          {step === 2 && (
+            <section id="v2">
+              <h1 className="text-xl sm:text-[22px] font-bold text-[#1b1f1c] dark:text-[#e6ebe7] mb-1">
+                Periksa data Anda
+              </h1>
+              <p className="text-sm text-[#5f675f] dark:text-[#9aa49c] mb-5">
+                Apakah data berikut sesuai dengan kartu peserta ujian Anda?
+              </p>
+
+              <dl className="mb-5 border-t border-[#cfd5cf] dark:border-[#323a34]">
+                <div className="grid grid-cols-[110px_1fr] py-2.5 border-b border-[#cfd5cf] dark:border-[#323a34] text-sm">
+                  <dt className="text-[#5f675f] dark:text-[#9aa49c]">Nama</dt>
+                  <dd className="m-0 font-semibold text-[#1b1f1c] dark:text-[#e6ebe7]">
+                    {lookedUpStudent?.nama ? cleanStudentName(lookedUpStudent.nama) : "-"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] py-2.5 border-b border-[#cfd5cf] dark:border-[#323a34] text-sm">
+                  <dt className="text-[#5f675f] dark:text-[#9aa49c]">Nomor induk</dt>
+                  <dd className="m-0 font-semibold font-mono text-[#1b1f1c] dark:text-[#e6ebe7]">
+                    {cleanNisn}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] py-2.5 border-b border-[#cfd5cf] dark:border-[#323a34] text-sm">
+                  <dt className="text-[#5f675f] dark:text-[#9aa49c]">Lembaga</dt>
+                  <dd className="m-0 font-semibold text-[#1b1f1c] dark:text-[#e6ebe7]">
+                    {lookedUpStudent?.jenjang || "-"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] py-2.5 border-b border-[#cfd5cf] dark:border-[#323a34] text-sm">
+                  <dt className="text-[#5f675f] dark:text-[#9aa49c]">Kelas</dt>
+                  <dd className="m-0 font-semibold text-[#1b1f1c] dark:text-[#e6ebe7]">
+                    {lookedUpStudent?.kelas || "-"}
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  onClick={handleConfirmAndEnter}
+                  disabled={isSubmitting}
+                  className="w-full font-semibold py-2.5 px-3.5 bg-[#0b4a2a] hover:bg-[#093a21] text-white rounded transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2Icon className="size-4 animate-spin" />
+                      Memvalidasi Sesi...
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck2Icon className="size-4" />
+                      Benar, masuk ruang ujian
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRejectData}
+                  disabled={isSubmitting}
+                  className="w-full font-semibold py-2.5 px-3.5 bg-transparent border border-[#cfd5cf] dark:border-[#323a34] text-[#1b1f1c] dark:text-[#e6ebe7] hover:bg-[#f2f3f1] dark:hover:bg-[#323a34]/40 rounded transition-colors text-sm flex items-center justify-center gap-1.5"
+                >
+                  <XCircleIcon className="size-4 text-[#a8261d]" />
+                  Bukan data saya
+                </Button>
+              </div>
+            </section>
+          )}
+
+          {/* ============================================================== */}
+          {/* TAHAP 3: SIAP MEMULAI                                           */}
+          {/* ============================================================== */}
+          {step === 3 && enteredSession && (
+            <section id="v3">
+              <h1 className="text-xl sm:text-[22px] font-bold text-[#1b1f1c] dark:text-[#e6ebe7] mb-1">
+                Siap memulai
+              </h1>
+              <div className="bg-[#e8f1ea] dark:bg-[#17291e] text-[#0b4a2a] dark:text-[#8fd9ad] p-3 border-l-4 border-[#0b4a2a] dark:border-[#8fd9ad] mb-4 text-sm rounded-r flex items-center gap-2 font-medium">
+                <CheckCircle2Icon className="size-4 shrink-0" />
+                <span>
+                  {enteredSession.studentName} · Identitas terkonfirmasi.
+                </span>
+              </div>
+
+              <dl className="mb-4 border-t border-[#cfd5cf] dark:border-[#323a34]">
+                <div className="grid grid-cols-[110px_1fr] py-2.5 border-b border-[#cfd5cf] dark:border-[#323a34] text-sm">
+                  <dt className="text-[#5f675f] dark:text-[#9aa49c]">Ujian</dt>
+                  <dd className="m-0 font-semibold text-[#1b1f1c] dark:text-[#e6ebe7]">
+                    {enteredSession.sessionTitle}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[110px_1fr] py-2.5 border-b border-[#cfd5cf] dark:border-[#323a34] text-sm">
+                  <dt className="text-[#5f675f] dark:text-[#9aa49c]">Durasi</dt>
+                  <dd className="m-0 font-semibold text-[#1b1f1c] dark:text-[#e6ebe7]">
+                    {enteredSession.durationMinutes} menit
+                  </dd>
+                </div>
+              </dl>
+
+              <p className="text-xs sm:text-sm text-[#5f675f] dark:text-[#9aa49c] mb-5 leading-relaxed">
+                Waktu pengerjaan akan mulai berjalan mundur sejak tombol ditekan. Seluruh jawaban Anda tersimpan otomatis di server.
+              </p>
+
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setIsExamStarted(true)
+                    toast.success("Mempersiapkan lembar soal ujian...")
+                  }}
+                  className="w-full font-semibold py-2.5 px-3.5 bg-[#0b4a2a] hover:bg-[#093a21] text-white rounded transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                  <PlayIcon className="size-4" />
+                  Mulai ujian
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEnteredSession(null)
+                    setStep(1)
+                  }}
+                  className="w-full font-normal py-2 text-xs border border-transparent text-[#5f675f] dark:text-[#9aa49c] hover:underline"
+                >
+                  Ganti identitas atau token
+                </Button>
+              </div>
+            </section>
+          )}
+        </main>
+
+        {/* Panel Kanan: Petunjuk & Cara Masuk (Sesuai Referensi HTML <aside>) */}
+        <aside className="pt-1.5 order-last text-sm leading-relaxed text-[#1b1f1c] dark:text-[#e6ebe7]">
+          <h2 className="text-[15px] font-bold mb-2.5 text-[#1b1f1c] dark:text-[#e6ebe7]">
+            Cara masuk
+          </h2>
+          <ol className="mb-5 pl-5 list-decimal space-y-1.5 text-[13.5px] text-[#5f675f] dark:text-[#9aa49c]">
+            <li>Isi nomor induk santri dan token dari pengawas ruang.</li>
+            <li>Token ujian terdiri dari 6 huruf sesi + 2 angka terakhir identitas Anda.</li>
+            <li>Periksa nama, lembaga, dan kelas yang tampil di layar.</li>
+            <li>Tekan tombol mulai ujian setelah pengawas memberi aba-aba.</li>
+          </ol>
+
+          <h2 className="text-[15px] font-bold mb-2.5 text-[#1b1f1c] dark:text-[#e6ebe7]">
+            Selama ujian
+          </h2>
+          <ul className="mb-5 pl-5 list-disc space-y-1.5 text-[13.5px] text-[#5f675f] dark:text-[#9aa49c]">
+            <li>Gunakan satu perangkat komputer atau tablet saja.</li>
+            <li>Token bersifat pribadi dan tidak dapat digunakan santri lain.</li>
+            <li>Dilarang berpindah jendela atau menutup halaman ujian.</li>
+          </ul>
+
+          <div className="p-3 bg-white/70 dark:bg-[#181d1a]/70 border border-[#cfd5cf] dark:border-[#323a34] rounded text-xs text-[#5f675f] dark:text-[#9aa49c] leading-relaxed">
+            Tidak bisa masuk atau salah nomor induk? Segera beri tahu pengawas ruang. Akses masuk dikunci sementara setelah 5 kali salah memasukkan token.
+          </div>
+        </aside>
       </div>
 
-      {!enteredSession ? (
-        /* Formulir Masuk Ujian Berurutan (A s.d. F) */
-        <Card className="w-full max-w-lg border-emerald-600/20 shadow-md shadow-emerald-900/5 bg-card">
-          <CardHeader className="pb-4 border-b border-emerald-950/10 dark:border-emerald-800/20 bg-gradient-to-r from-emerald-500/5 via-emerald-500/10 to-amber-500/5">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-heading flex items-center gap-2 text-emerald-900 dark:text-emerald-200">
-                <ShieldCheckIcon className="size-5 text-emerald-600 dark:text-emerald-400" />
-                Konfirmasi Identitas & Token
-              </CardTitle>
-              <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10 font-medium">
-                Pintu Ujian
-              </Badge>
-            </div>
-            <CardDescription className="text-xs">
-              Isi data santri secara benar sesuai data resmi pesantren sebelum menekan konfirmasi.
-            </CardDescription>
-          </CardHeader>
-
-          <form onSubmit={handleEnterExam} suppressHydrationWarning autoComplete="off">
-            <CardContent className="space-y-4 pt-5">
-              {/* 1. Nomor Induk Santri (NISN / NIS / ID Santri) */}
-              <div className="space-y-1.5">
-                <Label htmlFor="nisn" className="text-xs font-semibold flex items-center gap-1.5">
-                  <UserIcon className="size-3.5 text-emerald-700 dark:text-emerald-400" />
-                  1. Nomor Induk Santri (NISN / NIS / ID Santri) *
-                </Label>
-                <Input
-                  id="nisn"
-                  name="nisn"
-                  autoComplete="off"
-                  data-1p-ignore="true"
-                  placeholder="Contoh: 0123456789 atau 24.02.001..."
-                  value={nisn}
-                  onChange={(e) => setNisn(e.target.value)}
-                  className="font-mono text-xs sm:text-sm border-emerald-600/30 focus-visible:border-emerald-600 focus-visible:ring-emerald-600/20"
-                  required
-                />
-                {lookedUpStudent && (
-                  <div className="flex items-center gap-2 p-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-md text-xs text-emerald-800 dark:text-emerald-200 mt-1">
-                    <CheckCircle2Icon className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <span>
-                      Santri Terverifikasi: <strong>{lookedUpStudent.nama}</strong>
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* 2. Pilih Lembaga (SMPITA, SMAITA, MTA) */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="institution-select" className="text-xs font-semibold flex items-center gap-1.5">
-                    <SchoolIcon className="size-3.5 text-emerald-700 dark:text-emerald-400" />
-                    2. Pilih Lembaga *
-                  </Label>
-                  {lookedUpStudent && (
-                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
-                      <LockIcon className="size-3" />
-                      Terkunci Otomatis (Master Santri)
-                    </span>
-                  )}
-                </div>
-                <Select
-                  value={institution}
-                  onValueChange={handleInstitutionChange}
-                  disabled={!!lookedUpStudent}
-                >
-                  <SelectTrigger
-                    id="institution-select"
-                    className="w-full text-xs sm:text-sm border-emerald-600/30 disabled:opacity-75 disabled:cursor-not-allowed"
-                  >
-                    <SelectValue placeholder="Pilih lembaga pendidikan..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SMPITA">SMPITA (SMP Islam Terpadu At-Tauhid)</SelectItem>
-                    <SelectItem value="SMAITA">SMAITA (SMA Islam Terpadu At-Tauhid)</SelectItem>
-                    <SelectItem value="MTA">MTA (Madrasah Tarbiyatul Aimmah)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 3. Pilih Kelas (Dinamis bergantung lembaga yang dipilih) */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="student-class" className="text-xs font-semibold flex items-center gap-1.5">
-                    <LayersIcon className="size-3.5 text-emerald-700 dark:text-emerald-400" />
-                    3. Pilih Kelas *
-                  </Label>
-                  {lookedUpStudent ? (
-                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
-                      <LockIcon className="size-3" />
-                      Terkunci Otomatis (Master Santri)
-                    </span>
-                  ) : !institution ? (
-                    <span className="text-[11px] text-muted-foreground italic">
-                      Pilih lembaga terlebih dahulu
-                    </span>
-                  ) : null}
-                </div>
-                <Select
-                  value={className}
-                  onValueChange={(val) => setClassNameInput(val ?? "")}
-                  disabled={!!lookedUpStudent || !institution}
-                >
-                  <SelectTrigger
-                    id="student-class"
-                    className="w-full text-xs sm:text-sm border-emerald-600/30 disabled:opacity-75 disabled:cursor-not-allowed"
-                  >
-                    <SelectValue
-                      placeholder={
-                        !institution
-                          ? "Pilihan kelas dinonaktifkan hingga lembaga dipilih"
-                          : availableClasses === undefined
-                          ? "Memuat data kelas resmi..."
-                          : combinedClasses.length === 0
-                          ? "Kelas belum tersedia di database"
-                          : "Pilih kelas santri..."
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {combinedClasses.map((cls) => (
-                      <SelectItem key={cls} value={cls}>
-                        {cls} ({institution})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Pesan informatif jika data kelas pada lembaga tersebut belum tersedia di database */}
-                {institution && availableClasses !== undefined && combinedClasses.length === 0 && (
-                  <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-md text-xs text-amber-900 dark:text-amber-200 mt-1">
-                    <AlertTriangleIcon className="size-4 text-amber-600 shrink-0 mt-0.5" />
-                    <p className="leading-relaxed">
-                      Data kelas untuk lembaga <strong>{institution}</strong> belum tersedia di basis data. Hubungi pengawas ujian atau ustadz untuk melakukan sinkronisasi data santri terlebih dahulu.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* 4. Nama Lengkap Santri */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="student-name" className="text-xs font-semibold flex items-center gap-1.5">
-                    <GraduationCapIcon className="size-3.5 text-emerald-700 dark:text-emerald-400" />
-                    4. Nama Lengkap Santri *
-                  </Label>
-                  {lookedUpStudent && (
-                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
-                      <LockIcon className="size-3" />
-                      Terkunci Otomatis (Master Santri)
-                    </span>
-                  )}
-                </div>
-                <Input
-                  id="student-name"
-                  name="studentName"
-                  autoComplete="off"
-                  data-1p-ignore="true"
-                  placeholder="Nama lengkap sesuai daftar hadir ujian..."
-                  value={studentName}
-                  onChange={(e) => setStudentNameInput(e.target.value)}
-                  readOnly={!!lookedUpStudent}
-                  className={`text-xs sm:text-sm border-emerald-600/30 ${
-                    lookedUpStudent ? "bg-muted/50 cursor-not-allowed font-medium" : ""
-                  }`}
-                  required
-                />
-              </div>
-
-              {/* 5. Token Ujian 6 Karakter */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="exam-token" className="text-xs font-semibold flex items-center gap-1.5">
-                    <KeyRoundIcon className="size-3.5 text-emerald-700 dark:text-emerald-400" />
-                    5. Token Ujian 6 Karakter *
-                  </Label>
-                  <span className="text-[11px] font-mono text-muted-foreground">
-                    {cleanToken.length}/6 Karakter
-                  </span>
-                </div>
-                <Input
-                  id="exam-token"
-                  name="examToken"
-                  autoComplete="off"
-                  data-1p-ignore="true"
-                  placeholder="MASUKKAN TOKEN (MISAL: 8K2M3P)"
-                  value={token}
-                  onChange={handleTokenChange}
-                  maxLength={6}
-                  className="font-mono text-center tracking-widest text-base sm:text-lg uppercase font-bold py-5 border-emerald-600/40 focus-visible:border-emerald-600 focus-visible:ring-emerald-600/20"
-                  required
-                />
-              </div>
-
-              {/* Kotak Pratinjau Status Verifikasi Token */}
-              {cleanToken.length === 6 && (
-                <div className="pt-1">
-                  {sessionVerification === undefined ? (
-                    <div className="p-3 rounded-lg border bg-muted/40 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                      <Loader2Icon className="size-4 animate-spin text-emerald-600" />
-                      <span>Memverifikasi token sesi di server...</span>
-                    </div>
-                  ) : sessionVerification.valid ? (
-                    <div className="p-3 rounded-lg border border-emerald-500/40 bg-emerald-50/70 dark:bg-emerald-950/30 text-xs space-y-2">
-                      <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-semibold">
-                        <CheckCircle2Icon className="size-4 shrink-0 text-emerald-600" />
-                        <span>Sesi Ujian Ditemukan & Siap Diakses</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-emerald-200 dark:border-emerald-900/40">
-                        <div>
-                          <span className="text-muted-foreground">Judul Ujian:</span>
-                          <div className="font-semibold text-foreground truncate">
-                            {sessionVerification.title}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Mata Pelajaran:</span>
-                          <div className="font-semibold text-foreground">
-                            {sessionVerification.subjectCode}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Durasi Waktu:</span>
-                          <div className="font-semibold text-foreground">
-                            {sessionVerification.durationMinutes} Menit
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Jumlah Soal:</span>
-                          <div className="font-semibold text-foreground">
-                            {sessionVerification.totalQuestions} Butir
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-xs flex items-start gap-2 text-destructive">
-                      <AlertCircleIcon className="size-4 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="font-semibold">Token Tidak Dapat Digunakan</div>
-                        <p className="text-[11px] opacity-90 mt-0.5">
-                          {sessionVerification.message || "Token tidak valid atau sesi belum aktif."}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-
-            {/* 6. Tombol Konfirmasi & Masuk Ruang Ujian */}
-            <CardFooter className="pt-2 border-t flex flex-col gap-2">
-              <Button
-                type="submit"
-                disabled={
-                  isSubmitting ||
-                  !institution ||
-                  !className ||
-                  cleanToken.length !== 6 ||
-                  (sessionVerification !== undefined && !sessionVerification.valid)
-                }
-                className="w-full gap-2 py-5 text-sm bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2Icon className="size-4 animate-spin" />
-                    Memverifikasi & Menghubungkan...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2Icon className="size-4" />
-                    Konfirmasi & Masuk Ruang Ujian
-                  </>
-                )}
-              </Button>
-              <p className="text-[11px] text-center text-muted-foreground">
-                Pastikan nomor induk, lembaga, dan kelas Anda telah sesuai dengan kartu peserta ujian.
-              </p>
-            </CardFooter>
-          </form>
-        </Card>
-      ) : (
-        /* Kartu Instruksi & Tata Tertib Ujian */
-        <Card className="w-full max-w-xl border border-emerald-600/30 shadow-md">
-          <CardHeader className="pb-3 border-b bg-emerald-500/10">
-            <div className="flex items-center justify-between gap-2">
-              <Badge className="bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] gap-1">
-                <span className="size-1.5 rounded-full bg-white animate-pulse" />
-                Terhubung ke Sesi Ujian
-              </Badge>
-              <Badge variant="outline" className="font-mono text-xs border-amber-500/40 text-amber-800 dark:text-amber-300">
-                {enteredSession.durationMinutes} Menit
-              </Badge>
-            </div>
-            <CardTitle className="text-lg font-heading mt-2 text-emerald-950 dark:text-emerald-100">
-              {enteredSession.sessionTitle}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Silakan baca petunjuk tata tertib pelaksanaan ujian dengan seksama sebelum menekan tombol mulai.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-4 pt-4 text-xs">
-            {/* Rincian Peserta */}
-            <div className="grid grid-cols-2 gap-3 p-3 bg-muted/40 rounded-lg border">
-              <div>
-                <span className="text-muted-foreground text-[11px]">Nama Santri:</span>
-                <div className="font-semibold text-foreground text-sm">{enteredSession.studentName}</div>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-[11px]">Nomor Induk (NISN/NIS):</span>
-                <div className="font-mono font-semibold text-foreground text-sm">{enteredSession.nisn}</div>
-              </div>
-            </div>
-
-            {/* Tata Tertib */}
-            <div className="space-y-2">
-              <h4 className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                <BookOpenIcon className="size-4 text-emerald-700 dark:text-emerald-400" />
-                Tata Tertib & Petunjuk Ujian CBA:
-              </h4>
-              <ul className="space-y-1.5 text-muted-foreground pl-5 list-decimal text-[11px] leading-relaxed">
-                <li>Awali pengerjaan dengan membaca doa agar diberikan kemudahan dan pemahaman.</li>
-                <li>Waktu pengerjaan akan mulai berjalan mundur segera setelah Anda menekan tombol mulai.</li>
-                <li>Jawaban Anda tersimpan secara otomatis (auto-save) ke server setiap kali Anda memilih opsi.</li>
-                <li>Dilarang membuka halaman atau aplikasi lain selama ujian berlangsung.</li>
-                <li>Jika waktu habis, lembar jawaban Anda akan otomatis dikumpulkan oleh sistem.</li>
-              </ul>
-            </div>
-          </CardContent>
-
-          <CardFooter className="pt-3 border-t flex flex-col sm:flex-row items-center justify-between gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEnteredSession(null)}
-              className="w-full sm:w-auto text-xs"
-            >
-              Ganti Identitas / Token
-            </Button>
-            <Button
-              size="default"
-              className="w-full sm:w-auto gap-1.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
-              onClick={() => {
-                setIsExamStarted(true)
-                toast.success("Mempersiapkan lembar soal ujian...")
-              }}
-            >
-              <PlayIcon className="size-3.5" />
-              Mulai Mengerjakan Ujian
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
+      {/* Footer Bersih */}
+      <footer className="max-w-[920px] w-full mx-auto px-5 py-4 text-xs text-[#5f675f] dark:text-[#9aa49c] relative z-10 text-center sm:text-left border-t border-[#cfd5cf]/60 dark:border-[#323a34]/60 mt-auto">
+        Pesantren Islamic Centre At-Tauhid · Ujian Berbasis Komputer (CBA)
+      </footer>
     </div>
   )
 }

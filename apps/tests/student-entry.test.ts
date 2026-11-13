@@ -38,7 +38,7 @@ describe("Student Exam Entry & Verification (TASK-005 & TASK-010)", () => {
       content.includes("export const enterExamSession = mutation("),
       "enterExamSession mutation must be exported"
     )
-    assert.ok(content.includes("cleanToken.length !== 6"))
+    assert.ok(content.includes("rawToken.length !== 6 && rawToken.length !== 8"))
     assert.ok(content.includes("institution: v.optional(v.union(v.literal(\"SMPITA\"), v.literal(\"SMAITA\"), v.literal(\"MTA\")))"))
     assert.ok(content.includes("className: v.optional(v.string())"))
     assert.ok(content.includes("student.jenjang !== args.institution"))
@@ -59,71 +59,52 @@ describe("Student Exam Entry & Verification (TASK-005 & TASK-010)", () => {
     assert.ok(content.includes("/^mta\\s*[1-6]/i"))
   })
 
-  it("confirms student exam entry page follows the strict 6-step form order", () => {
+  it("confirms student exam entry page follows the reference 3-step wizard and verification", () => {
     const pagePath = path.join(APPS_ROOT, "app", "ujian", "page.tsx")
     assert.ok(fs.existsSync(pagePath), "app/ujian/page.tsx must exist")
     const content = fs.readFileSync(pagePath, "utf-8")
 
-    // Urutan Form:
-    // 1. Nomor Induk Santri (NISN / NIS / ID Santri)
-    // 2. Pilih Lembaga
-    // 3. Pilih Kelas
-    // 4. Nama Lengkap Santri
-    // 5. Token Ujian 6 Karakter
-    // 6. Tombol Konfirmasi & Masuk Ruang Ujian
-    const idxNisn = content.indexOf("1. Nomor Induk Santri")
-    const idxLembaga = content.indexOf("2. Pilih Lembaga")
-    const idxKelas = content.indexOf("3. Pilih Kelas")
-    const idxNama = content.indexOf("4. Nama Lengkap Santri")
-    const idxToken = content.indexOf("5. Token Ujian 6 Karakter")
-    const idxTombol = content.indexOf("Konfirmasi & Masuk Ruang Ujian")
+    // Langkah 1: Input Nomor Induk & Token Ujian
+    assert.ok(content.includes("Nomor induk santri"), "Field Nomor Induk Santri must exist")
+    assert.ok(content.includes("Token ujian"), "Field Token Ujian must exist")
 
-    assert.ok(idxNisn !== -1, "Field 1 (Nomor Induk Santri) must exist")
-    assert.ok(idxLembaga !== -1, "Field 2 (Pilih Lembaga) must exist")
-    assert.ok(idxKelas !== -1, "Field 3 (Pilih Kelas) must exist")
-    assert.ok(idxNama !== -1, "Field 4 (Nama Lengkap Santri) must exist")
-    assert.ok(idxToken !== -1, "Field 5 (Token Ujian) must exist")
-    assert.ok(idxTombol !== -1, "Button 6 (Konfirmasi & Masuk) must exist")
+    // Langkah 2: Konfirmasi Data Saya vs Bukan Data Saya
+    assert.ok(content.includes("Periksa data Anda"), "Layar Konfirmasi Data must exist")
+    assert.ok(content.includes("Benar, masuk ruang ujian"), "Tombol Benar Masuk Ruang Ujian must exist")
+    assert.ok(content.includes("Bukan data saya"), "Tombol Bukan Data Saya must exist")
 
-    assert.ok(idxNisn < idxLembaga, "Nomor Induk must precede Lembaga")
-    assert.ok(idxLembaga < idxKelas, "Lembaga must precede Kelas")
-    assert.ok(idxKelas < idxNama, "Kelas must precede Nama Lengkap")
-    assert.ok(idxNama < idxToken, "Nama Lengkap must precede Token")
-    assert.ok(idxToken < idxTombol, "Token must precede Submit Button")
+    // Langkah 3: Siap Memulai
+    assert.ok(content.includes("Siap memulai"), "Layar Siap Memulai must exist")
+    assert.ok(content.includes("Mulai ujian"), "Tombol Mulai Ujian must exist")
   })
 
-  it("confirms dynamic institution and class behaviors (disabled when unselected, reset on change, empty class alert)", () => {
+  it("confirms security features against guessing (8-char token with NISN digits, lockout on 5 failed attempts)", () => {
     const pagePath = path.join(APPS_ROOT, "app", "ujian", "page.tsx")
     const content = fs.readFileSync(pagePath, "utf-8")
 
-    // Pilihan Lembaga: SMPITA, SMAITA, MTA
-    assert.ok(content.includes('value="SMPITA"'))
-    assert.ok(content.includes('value="SMAITA"'))
-    assert.ok(content.includes('value="MTA"'))
+    // Maksimal 8 karakter token (6 karakter sesi + 2 angka santri)
+    assert.ok(content.includes("maxLength={8}"))
 
-    // Kelas dinonaktifkan sebelum lembaga dipilih
-    assert.ok(content.includes("disabled={!institution}") || content.includes("disabled={!!lookedUpStudent || !institution}"))
+    // Proteksi percobaan gagal maksimal 5 kali
+    assert.ok(content.includes("failedAttempts"))
+    assert.ok(content.includes("isLocked"))
+    assert.ok(content.includes("5 - nextFailed") || content.includes("dikunci sementara"))
 
-    // Pergantian lembaga mengosongkan pilihan kelas
-    assert.ok(content.includes('setClassNameInput("")'))
+    // Validasi token lengkap 8 karakter dan kecocokan 2 digit santri di Langkah 1
+    assert.ok(content.includes("cleanToken.length < 8"), "Must enforce 8-character token in step 1")
+    assert.ok(content.includes("twoDigits"), "Must check student twoDigits in step 1")
+    assert.ok(content.includes("cleanErrorMessage"), "Must clean error messages for notifications")
+  })
 
-    // Master data santri menang atas isian manual (diturunkan, bukan disalin lewat efek)
-    assert.ok(content.includes("lookedUpStudent?.jenjang || institutionInput"))
-    assert.ok(content.includes("lookedUpStudent?.kelas || classNameInput"))
-    assert.ok(content.includes("lookedUpStudent?.nama || studentNameInput"))
-    assert.ok(!content.includes("React.useEffect"), "gerbang ujian tidak boleh menyinkronkan form lewat efek")
+  it("confirms studentGateProfile and verifySessionToken include twoDigits token support", () => {
+    const studentQueriesPath = path.join(APPS_ROOT, "convex", "students", "public", "queries.ts")
+    const studentQueries = fs.readFileSync(studentQueriesPath, "utf-8")
+    assert.ok(studentQueries.includes("twoDigits: extractStudentTwoDigits(student)"), "Must return twoDigits in gate profile")
 
-    // Ketika cocok dengan data santri di database: nama, lembaga, kelas terkunci
-    assert.ok(content.includes("disabled={!!lookedUpStudent}"))
-    assert.ok(content.includes("disabled={!!lookedUpStudent || !institution}"))
-    assert.ok(content.includes("readOnly={!!lookedUpStudent}"))
-
-    // Pada nama terverifikasi tidak ada lagi info kelas yang menempel
-    assert.ok(content.includes("Santri Terverifikasi: <strong>{lookedUpStudent.nama}</strong>\n                    </span>"))
-    assert.ok(!content.includes("Santri Terverifikasi: <strong>{lookedUpStudent.nama}</strong> ({lookedUpStudent.jenjang} - {lookedUpStudent.kelas})"))
-
-    // Pesan jika kelas belum tersedia di database dan tidak membuat kelas fiktif
-    assert.ok(content.includes("belum tersedia di basis data"))
+    const sessionQueriesPath = path.join(APPS_ROOT, "convex", "examSession", "public", "queries.ts")
+    const sessionQueries = fs.readFileSync(sessionQueriesPath, "utf-8")
+    assert.ok(sessionQueries.includes("identifier: v.optional(v.string())"), "verifySessionToken must support identifier")
+    assert.ok(sessionQueries.includes("validDigits.includes(suppliedDigits)"), "verifySessionToken must validate 2 digits")
   })
 
   it("ensures zero technical specification leaks in app/ujian/page.tsx", () => {

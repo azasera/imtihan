@@ -10,7 +10,7 @@ Paket perencanaan produk E-Imtihan At-Tauhid yang dibuat dengan Planora Product 
 
 ## Status
 
-Versi 0.4 — menambahkan layar Monitoring Sesi Ujian pada menu utama pengajar (`SESI-FR-005`, `SESI-AC-004`, `SESI-AC-005`) beserta aturan isolasi data per pengajar dan pengecualian gerbang santri anonymous pada NFR keamanan. Item eksekusi `CHG-001` menunggu implementasi; keputusan penautan sesi ke daftar kelas santri masih terbuka. Validasi manusia dan technical design tetap diperlukan sebelum implementasi.
+Versi 0.9 — Penyelarasan format cetak rapor presisi mengadopsi 4 berkas rujukan PDF resmi At-Tauhid (`CHG-014`): Kurmer PTS (1 hal), Kurmer PAS (2 hal proporsional dengan Kokurikuler di hal 1 dan Ekskul/Absensi/Catatan Walas di hal 2), Diniyah PTS (1 hal dengan Target Hafalan Tengah Semester 1), dan Diniyah PAS (1 hal dengan Target Hafalan Semester 1/2), disertai perbaikan rendering PDF via `html2canvas-pro` berbasis palet warna hex standar dan kemampuan unduh batch/single PDF & ZIP. Versi 0.6 mengadopsi pola CBT pembanding (`CHG-005` s.d `CHG-010`). Modul E-Rapor CBT dan KOP SiPAKSa (`CHG-012`, `CHG-013`) telah beroperasi penuh.
 
 ## Perintah agent
 

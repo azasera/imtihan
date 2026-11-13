@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -23,8 +24,6 @@ import { authClient } from "@/lib/auth-client"
 import {
   EllipsisVerticalIcon,
   CircleUserRoundIcon,
-  CreditCardIcon,
-  BellIcon,
   LogOutIcon,
 } from "lucide-react"
 
@@ -119,23 +118,15 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem render={<Link href="/account" />}>
                 <CircleUserRoundIcon />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BellIcon />
-                Notifications
+                <span>Akun Saya</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={isSigningOut} onClick={handleSignOut}>
               <LogOutIcon />
-              Log out
+              <span>Keluar</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -9,6 +9,7 @@ import {
   CheckIcon,
   ClockIcon,
   CopyIcon,
+  GitBranchIcon,
   KeyRoundIcon,
   LayersIcon,
   PlayIcon,
@@ -16,8 +17,10 @@ import {
   RefreshCwIcon,
   RotateCcwIcon,
   SearchIcon,
+  ShieldAlertIcon,
   ShuffleIcon,
   StopCircleIcon,
+  TargetIcon,
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -25,6 +28,18 @@ import { toast } from "sonner"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { authClient } from "@/lib/auth-client"
+import { parsePassingScoreInput, sessionKindLabel } from "@/lib/session-continuation"
+import {
+  DEFAULT_VIOLATION_THRESHOLD,
+  enforcementSummary,
+  parseViolationThresholdInput,
+  violationThresholdHint,
+  type EnforcementMode,
+} from "@/lib/session-integrity"
+import {
+  TOKEN_ROTATION_OPTIONS,
+  estimateTokenRotations,
+} from "@/lib/session-token"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -53,6 +68,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  SessionContinuationDialog,
+  type ContinuationSource,
+} from "@/components/sesi-ujian/session-continuation-dialog"
 
 export default function SesiUjianPage() {
   const router = useRouter()
@@ -75,9 +95,17 @@ export default function SesiUjianPage() {
   const [startTime, setStartTime] = React.useState("")
   const [endTime, setEndTime] = React.useState("")
   const [durationMinutes, setDurationMinutes] = React.useState<number>(60)
+  const [passingScoreInput, setPassingScoreInput] = React.useState<string>("")
   const [randomizeQuestions, setRandomizeQuestions] = React.useState<boolean>(true)
   const [randomizeOptions, setRandomizeOptions] = React.useState<boolean>(true)
+  const [enforcementMode, setEnforcementMode] = React.useState<EnforcementMode>("record")
+  const [violationThresholdInput, setViolationThresholdInput] = React.useState<string>(
+    String(DEFAULT_VIOLATION_THRESHOLD)
+  )
+  const [rotationEnabled, setRotationEnabled] = React.useState<boolean>(false)
+  const [rotationMinutes, setRotationMinutes] = React.useState<number>(15)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [continuationSource, setContinuationSource] = React.useState<ContinuationSource | null>(null)
 
   // State feedback copy token & regenerate
   const [copiedToken, setCopiedToken] = React.useState<string | null>(null)
@@ -96,10 +124,21 @@ export default function SesiUjianPage() {
     setStartTime(localStart)
     setEndTime(localEnd)
     setTitle("")
-    setSelectedBankId(questionBanks && questionBanks.length > 0 ? questionBanks[0]._id : "")
+    const defaultBankId = questionBanks && questionBanks.length > 0 ? questionBanks[0]._id : ""
+    const defaultBank = questionBanks?.find((bank) => bank._id === defaultBankId)
+    setSelectedBankId(defaultBankId)
+    setPassingScoreInput(
+      defaultBank?.passingScore === undefined || defaultBank.passingScore === null
+        ? ""
+        : String(defaultBank.passingScore)
+    )
     setDurationMinutes(60)
     setRandomizeQuestions(true)
     setRandomizeOptions(true)
+    setEnforcementMode("record")
+    setViolationThresholdInput(String(DEFAULT_VIOLATION_THRESHOLD))
+    setRotationEnabled(false)
+    setRotationMinutes(15)
     setIsDialogOpen(true)
   }
 
@@ -132,6 +171,22 @@ export default function SesiUjianPage() {
       return
     }
 
+    const passingScore = parsePassingScoreInput(passingScoreInput)
+    if (!passingScore.ok) {
+      toast.error(passingScore.message)
+      return
+    }
+
+    let violationThreshold: number | undefined
+    if (enforcementMode === "lock") {
+      const parsedThreshold = parseViolationThresholdInput(violationThresholdInput)
+      if (!parsedThreshold.ok) {
+        toast.error(parsedThreshold.message)
+        return
+      }
+      violationThreshold = parsedThreshold.value
+    }
+
     setIsSubmitting(true)
     try {
       const result = await createSession({
@@ -142,6 +197,11 @@ export default function SesiUjianPage() {
         durationMinutes,
         randomizeQuestions,
         randomizeOptions,
+        passingScore: passingScore.value ?? undefined,
+        ...(enforcementMode === "lock"
+          ? { enforcementMode: "lock" as const, violationThreshold }
+          : {}),
+        tokenRotationMinutes: rotationEnabled ? rotationMinutes : undefined,
       })
 
       toast.success(`Sesi ujian berhasil dijadwalkan dengan Token: ${result.token}`)
@@ -216,13 +276,17 @@ export default function SesiUjianPage() {
   }
 
   const handleDeleteSession = async (sessionId: Id<"examSessions">, title: string) => {
-    if (!confirm(`Hapus sesi ujian "${title}"? Tindakan ini tidak dapat dibatalkan.`)) {
+    if (
+      !confirm(
+        `Hapus sesi ujian "${title}"? Seluruh data peserta dan lembar jawaban pada sesi ini akan dihapus permanen.`
+      )
+    ) {
       return
     }
 
     try {
       await deleteSession({ sessionId })
-      toast.success("Sesi ujian berhasil dihapus.")
+      toast.success("Sesi ujian beserta data peserta berhasil dihapus.")
     } catch (err: unknown) {
       const error = err as Error
       toast.error(error.message || "Gagal menghapus sesi ujian.")
@@ -244,6 +308,17 @@ export default function SesiUjianPage() {
       return matchesSearch && matchesStatus
     })
   }, [sessions, searchQuery, statusFilter])
+
+  const rotationEstimate = rotationEnabled
+    ? estimateTokenRotations(startTime, endTime, rotationMinutes)
+    : null
+
+  const rotationEstimateText =
+    rotationEstimate === null
+      ? "Isi waktu mulai dan batas akhir untuk melihat perkiraan pergantian."
+      : rotationEstimate === 0
+        ? "Interval lebih panjang dari jendela sesi, jadi token mungkin belum berganti."
+        : `Token diperkirakan berganti ${rotationEstimate} kali sebelum sesi berakhir.`
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
@@ -281,7 +356,7 @@ export default function SesiUjianPage() {
               </Button>
             }
           />
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-xl">
             <DialogHeader>
               <DialogTitle className="font-heading">Jadwal Sesi Ujian Baru</DialogTitle>
               <DialogDescription>
@@ -303,7 +378,14 @@ export default function SesiUjianPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="session-bank">Paket Bank Soal Rujukan *</Label>
-                <Select value={selectedBankId} onValueChange={(val) => setSelectedBankId(val ?? "")}>
+                <Select
+                  items={questionBanks?.map((bank) => ({
+                    value: bank._id,
+                    label: `${bank.title} (${bank.subjectCode} - ${bank.gradeLevel})`,
+                  }))}
+                  value={selectedBankId}
+                  onValueChange={(val) => setSelectedBankId(val ?? "")}
+                >
                   <SelectTrigger id="session-bank" className="w-full">
                     <SelectValue placeholder="Pilih paket bank soal..." />
                   </SelectTrigger>
@@ -322,7 +404,7 @@ export default function SesiUjianPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="session-start" className="text-xs">Waktu Mulai Pelaksanaan *</Label>
                   <Input
@@ -347,23 +429,42 @@ export default function SesiUjianPage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="session-duration">Batas Durasi Santri (Menit) *</Label>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {durationMinutes} Menit ({Math.floor(durationMinutes / 60)} Jam {durationMinutes % 60} Menit)
-                  </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                    <Label htmlFor="session-duration">Batas Durasi Santri (Menit) *</Label>
+                    <span className="text-[11px] text-muted-foreground font-mono">
+                      {durationMinutes} Menit ({Math.floor(durationMinutes / 60)} Jam {durationMinutes % 60} Menit)
+                    </span>
+                  </div>
+                  <Input
+                    id="session-duration"
+                    type="number"
+                    min={5}
+                    max={300}
+                    step={5}
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                    required
+                  />
                 </div>
-                <Input
-                  id="session-duration"
-                  type="number"
-                  min={5}
-                  max={300}
-                  step={5}
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                  required
-                />
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="session-passing-score">Batas Nilai Tuntas</Label>
+                  <Input
+                    id="session-passing-score"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={passingScoreInput}
+                    onChange={(e) => setPassingScoreInput(e.target.value)}
+                    placeholder="Kosongkan bila tidak ada"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Dipakai menandai tuntas atau belum pada rekap. Kosong berarti tanpa penanda.
+                  </p>
+                </div>
               </div>
 
               <div className="p-3 bg-muted/40 rounded-lg space-y-3 border">
@@ -380,6 +481,7 @@ export default function SesiUjianPage() {
                     id="switch-rand-q"
                     checked={randomizeQuestions}
                     onCheckedChange={(checked) => setRandomizeQuestions(checked)}
+                    className="shrink-0"
                   />
                 </div>
 
@@ -396,20 +498,127 @@ export default function SesiUjianPage() {
                     id="switch-rand-opt"
                     checked={randomizeOptions}
                     onCheckedChange={(checked) => setRandomizeOptions(checked)}
+                    className="shrink-0"
                   />
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end gap-2">
+              <div className="space-y-2">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-semibold">Penegakan Integritas</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Tentukan tindakan saat santri berpindah tab. Lembar yang terkunci hanya dapat
+                    dibuka pengajar dari layar monitoring.
+                  </p>
+                </div>
+                <ToggleGroup
+                  multiple={false}
+                  value={[enforcementMode]}
+                  onValueChange={(value) =>
+                    setEnforcementMode((value[0] ?? "record") as EnforcementMode)
+                  }
+                  variant="outline"
+                  className="w-full"
+                  aria-label="Mode penegakan integritas"
+                >
+                  <ToggleGroupItem value="record" className="flex-1 text-xs">
+                    Catat saja
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="lock" className="flex-1 text-xs">
+                    Kunci setelah ambang
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                {enforcementMode === "lock" && (
+                  <div className="space-y-1.5 pt-1">
+                    <Label htmlFor="session-violation-threshold" className="text-xs">
+                      Ambang Pelanggaran
+                    </Label>
+                    <Input
+                      id="session-violation-threshold"
+                      type="number"
+                      min={1}
+                      max={20}
+                      step={1}
+                      value={violationThresholdInput}
+                      onChange={(e) => setViolationThresholdInput(e.target.value)}
+                      className="w-full sm:w-40"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      {violationThresholdHint(violationThresholdInput)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-semibold">Masa Berlaku Token</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Token dipakai santri untuk masuk. Rotasi otomatis hanya berjalan selama sesi
+                    berstatus aktif.
+                  </p>
+                </div>
+                <ToggleGroup
+                  multiple={false}
+                  value={[rotationEnabled ? "rotate" : "fixed"]}
+                  onValueChange={(value) =>
+                    setRotationEnabled((value[0] ?? "fixed") === "rotate")
+                  }
+                  variant="outline"
+                  className="w-full"
+                  aria-label="Masa berlaku token"
+                >
+                  <ToggleGroupItem value="fixed" className="flex-1 text-xs">
+                    Tetap sampai diganti
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="rotate" className="flex-1 text-xs">
+                    Berganti berkala
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                {rotationEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="session-token-rotation" className="text-xs">
+                        Interval Pergantian
+                      </Label>
+                      <Select
+                        items={TOKEN_ROTATION_OPTIONS.map((minutes) => ({
+                          value: String(minutes),
+                          label: `Tiap ${minutes} menit`,
+                        }))}
+                        value={String(rotationMinutes)}
+                        onValueChange={(value) => setRotationMinutes(Number(value ?? 15))}
+                      >
+                        <SelectTrigger id="session-token-rotation" className="w-full text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TOKEN_ROTATION_OPTIONS.map((minutes) => (
+                            <SelectItem key={minutes} value={String(minutes)}>
+                              Tiap {minutes} menit
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground sm:pt-6">
+                      {rotationEstimateText}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 border-t flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsDialogOpen(false)}
                   disabled={isSubmitting}
+                  className="w-full sm:w-auto"
                 >
                   Batal
                 </Button>
-                <Button type="submit" disabled={isSubmitting} className="gap-1.5">
+                <Button type="submit" disabled={isSubmitting} className="gap-1.5 w-full sm:w-auto">
                   <PlusIcon className="size-4" />
                   {isSubmitting ? "Menyimpan Sesi..." : "Simpan & Buat Sesi"}
                 </Button>
@@ -446,7 +655,16 @@ export default function SesiUjianPage() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? "all")}>
+          <Select
+            items={{
+              all: "Semua Status",
+              active: "Sedang Aktif",
+              draft: "Draf (Belum Aktif)",
+              ended: "Telah Berakhir",
+            }}
+            value={statusFilter}
+            onValueChange={(val) => setStatusFilter(val ?? "all")}
+          >
             <SelectTrigger className="w-full sm:w-48 text-xs sm:text-sm">
               <SelectValue placeholder="Semua Status" />
             </SelectTrigger>
@@ -513,9 +731,19 @@ export default function SesiUjianPage() {
                       </Badge>
                     )}
 
-                    <Badge variant="outline" className="text-xs font-mono">
-                      {session.gradeLevel}
-                    </Badge>
+                    <div className="flex flex-wrap items-center justify-end gap-1">
+                      {session.kind !== "reguler" && (
+                        <Badge
+                          variant="outline"
+                          className="text-[11px] border-primary/40 text-primary"
+                        >
+                          {sessionKindLabel(session.kind)}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-xs font-mono">
+                        {session.gradeLevel}
+                      </Badge>
+                    </div>
                   </div>
 
                   <CardTitle className="text-base font-heading mt-2 line-clamp-2">
@@ -524,6 +752,11 @@ export default function SesiUjianPage() {
                   <CardDescription className="text-xs line-clamp-1">
                     Bank Soal: {session.bankTitle} ({session.subjectCode})
                   </CardDescription>
+                  {session.sourceTitle && (
+                    <p className="text-[11px] text-muted-foreground line-clamp-1">
+                      Sesi sumber: {session.sourceTitle}
+                    </p>
+                  )}
                 </CardHeader>
 
                 <CardContent className="space-y-3 pb-3 text-xs">
@@ -591,6 +824,30 @@ export default function SesiUjianPage() {
                       </span>
                     </div>
                   )}
+
+                  {session.passingScore !== null && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <TargetIcon className="size-3 text-primary shrink-0" />
+                      <span>Batas tuntas {session.passingScore}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                    <ShieldAlertIcon className="size-3 text-primary shrink-0 mt-0.5" />
+                    <span>{enforcementSummary(session.enforcementMode, session.violationThreshold)}</span>
+                  </div>
+
+                  {session.status === "ended" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs gap-1.5"
+                      onClick={() => setContinuationSource(session)}
+                    >
+                      <GitBranchIcon className="size-3.5" />
+                      Buat Remedial / Susulan
+                    </Button>
+                  )}
                 </CardContent>
 
                 <CardFooter className="pt-2 border-t flex items-center justify-between gap-2">
@@ -598,7 +855,7 @@ export default function SesiUjianPage() {
                   {session.status === "draft" && (
                     <Button
                       size="sm"
-                      className="w-full text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="flex-1 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                       onClick={() => handleToggleStatus(session._id, "active", session.title)}
                     >
                       <PlayIcon className="size-3.5" />
@@ -610,7 +867,7 @@ export default function SesiUjianPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="w-full text-xs gap-1.5"
+                      className="flex-1 text-xs gap-1.5"
                       onClick={() => handleToggleStatus(session._id, "ended", session.title)}
                     >
                       <StopCircleIcon className="size-3.5" />
@@ -622,7 +879,7 @@ export default function SesiUjianPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full text-xs gap-1.5"
+                      className="flex-1 text-xs gap-1.5"
                       onClick={() => handleToggleStatus(session._id, "active", session.title)}
                     >
                       <RotateCcwIcon className="size-3.5" />
@@ -636,6 +893,7 @@ export default function SesiUjianPage() {
                     className="size-8 text-destructive hover:bg-destructive/10 shrink-0"
                     onClick={() => handleDeleteSession(session._id, session.title)}
                     title="Hapus sesi ujian"
+                    aria-label={`Hapus sesi ujian ${session.title}`}
                   >
                     <Trash2Icon className="size-4" />
                   </Button>
@@ -644,6 +902,14 @@ export default function SesiUjianPage() {
             )
           })}
         </div>
+      )}
+
+      {continuationSource && (
+        <SessionContinuationDialog
+          key={continuationSource._id}
+          source={continuationSource}
+          onClose={() => setContinuationSource(null)}
+        />
       )}
     </div>
   )

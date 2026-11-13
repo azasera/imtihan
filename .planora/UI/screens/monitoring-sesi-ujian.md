@@ -1,6 +1,6 @@
 # Layar Monitoring Sesi Ujian
 
-Spesifikasi layar pemantauan langsung untuk pengajar dan panitia. Memenuhi `SESI-FR-004` dan `SESI-FR-005`, dengan kriteria penerimaan `SESI-AC-004` dan `SESI-AC-005`.
+Spesifikasi layar pemantauan langsung untuk pengajar dan panitia. Memenuhi `SESI-FR-004` dan `SESI-FR-005`, dengan kriteria penerimaan `SESI-AC-004` dan `SESI-AC-005`. Sebagian kartu token dan aksi pada baris peserta diluaskan oleh revisi pelaksanaan sesi; bagian itu memakai `SESI-FR-006`, `SESI-FR-007`, `SESI-FR-010`, dan `SESI-AC-009` dan terperinci pada [spesifikasi pelaksanaan sesi](pelaksanaan-dan-penegakan-sesi.md).
 
 ## Tujuan
 
@@ -18,10 +18,11 @@ Pengawas yang mendampingi ujian di kelas perlu melihat, tanpa membuka halaman re
 2. Pemilih sesi: daftar sesi milik pengajar yang sedang login, dengan sesi berstatus aktif sebagai pilihan awal.
 3. Ringkasan hitung: jumlah peserta yang masuk, sedang mengerjakan, telah selesai, dan akumulasi pelanggaran tab pada sesi tersebut. Selama sesi belum ditautkan ke daftar kelas santri, baris "belum mulai" ditampilkan sebagai "belum terhitung" dan tidak dikarang angkanya.
 4. Tabel peserta dengan kolom: Nama, Nomor induk, Kelas, Status, Waktu masuk, Waktu pengumpulan, Nilai, Status koreksi, Pelanggaran tab.
-   - Status memakai badge berlabel teks: "Sedang mengerjakan" (amber) dan "Selesai" (hijau primary).
+   - Status memakai badge berlabel teks: "Sedang mengerjakan" (amber), "Selesai" (hijau primary), dan "Terkunci" untuk sesi bermode kunci setelah ambang pelanggaran terlampaui.
    - Nilai hanya ditampilkan bila skor sudah terhitung; selain itu gunakan tanda hubung, bukan nol.
    - Badge jumlah pelanggaran tab hanya muncul bila lebih dari nol; nilai nol ditampilkan sebagai teks biasa.
-5. Aksi per baris: tombol "Buka koreksi" aktif untuk peserta yang telah selesai, dan dinonaktifkan untuk peserta yang masih mengerjakan.
+5. Aksi per baris: tombol "Buka koreksi" aktif untuk peserta yang telah selesai, dinonaktifkan untuk peserta yang masih mengerjakan, dan digantikan tombol "Buka Kunci" sebagai aksi utama pada baris peserta yang terkunci.
+6. Tautan "Analisis Butir" pada header menuju laporan mutu butir sesi ini; hanya tampil bila sesi sudah punya peserta yang nilainya lengkap.
 
 ## Perilaku dan sumber data
 

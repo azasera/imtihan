@@ -25,6 +25,26 @@ describe("Sesi Ujian UI Page & Token Controls", () => {
     assert.ok(content.includes("api.examSession.public.mutations.regenerateSessionToken"), "Connects to regenerateSessionToken mutation")
     assert.ok(content.includes("api.examSession.public.mutations.setSessionStatus"), "Connects to setSessionStatus mutation")
     assert.ok(content.includes("api.examSession.public.mutations.deleteExamSession"), "Connects to deleteExamSession mutation")
+    assert.ok(content.includes("handleDeleteSession"), "Has delete session handler")
+    assert.ok(content.includes('className="flex-1 text-xs gap-1.5'), "Status action button shares space with delete button")
+  })
+
+  it("ensures create session dialog has responsive and scrollable layout", () => {
+    const pagePath = path.join(APPS_ROOT, "app", "(main)", "sesi-ujian", "page.tsx")
+    const content = fs.readFileSync(pagePath, "utf-8")
+
+    assert.ok(
+      content.includes("max-h-[90vh] overflow-y-auto"),
+      "Dialog content must be bounded by max-h-[90vh] and scrollable"
+    )
+    assert.ok(
+      content.includes("sm:max-w-2xl"),
+      "Dialog content must have adequate width on sm+ displays"
+    )
+    assert.ok(
+      content.includes("grid grid-cols-1 sm:grid-cols-2 gap-3"),
+      "Date time inputs must stack on mobile and span two columns on sm+"
+    )
   })
 
   it("confirms sidebar navigation links to /sesi-ujian", () => {

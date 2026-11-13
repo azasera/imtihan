@@ -1,7 +1,9 @@
 import { v } from "convex/values"
 
 import { query } from "../../_generated/server"
-import { deterministicShuffle } from "../private/helpers"
+import { deterministicShuffle, groupAndShuffleQuestions, hasSavedAnswer } from "../private/helpers"
+import { tokenRotationState } from "../private/tokenCode"
+import { getValidStudentTwoDigits, identifierMatches } from "../../model/nisn"
 
 /**
  * Mengambil daftar sesi ujian yang dibuat oleh pengajar saat ini.
@@ -27,6 +29,7 @@ export const listExamSessions = query({
       : sessions
 
     // Perkaya data sesi dengan ringkasan bank soal
+    const now = Date.now()
     const enriched = await Promise.all(
       filtered.map(async (session) => {
         const bank = await ctx.db.get("questionBanks", session.bankId)
@@ -34,9 +37,16 @@ export const listExamSessions = query({
           .query("questions")
           .withIndex("by_bank", (q) => q.eq("bankId", session.bankId))
           .collect()
+        const source = session.sourceSessionId
+          ? await ctx.db.get("examSessions", session.sourceSessionId)
+          : null
 
         return {
           ...session,
+          ...tokenRotationState(session, now),
+          kind: session.kind ?? "reguler",
+          sourceTitle: source?.title ?? null,
+          passingScore: session.passingScore ?? null,
           bankTitle: bank?.title ?? "Paket Bank Soal (Terhapus)",
           subjectCode: bank?.subjectCode ?? "-",
           gradeLevel: bank?.gradeLevel ?? "-",
@@ -77,15 +87,21 @@ export const getExamSession = query({
       .query("questions")
       .withIndex("by_bank", (q) => q.eq("bankId", session.bankId))
       .collect()
+    const source = session.sourceSessionId
+      ? await ctx.db.get("examSessions", session.sourceSessionId)
+      : null
 
     return {
       ...session,
+      ...tokenRotationState(session, Date.now()),
+      kind: session.kind ?? "reguler",
+      sourceTitle: source?.title ?? null,
+      passingScore: session.passingScore ?? null,
       bankTitle: bank?.title ?? "Paket Bank Soal",
       subjectCode: bank?.subjectCode ?? "-",
       gradeLevel: bank?.gradeLevel ?? "-",
       totalQuestions: questions.length,
       totalPoints: bank?.totalPoints ?? 100,
-      passingScore: bank?.passingScore ?? 75,
     }
   },
 })
@@ -97,14 +113,17 @@ export const getExamSession = query({
 export const verifySessionToken = query({
   args: {
     token: v.string(),
+    identifier: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const cleanToken = args.token.trim().toUpperCase()
+    const raw = args.token.trim().toUpperCase()
+    // Mendukung 6 karakter (token dasar) atau 8 karakter (token + 2 digit santri)
+    const cleanToken = raw.slice(0, 6)
 
     if (cleanToken.length !== 6) {
       return {
         valid: false,
-        message: "Format token tidak valid. Token ujian terdiri dari 6 karakter.",
+        message: "Format token tidak valid. Token ujian terdiri dari 6 karakter sesi.",
       }
     }
 
@@ -116,7 +135,8 @@ export const verifySessionToken = query({
     if (!session) {
       return {
         valid: false,
-        message: "Token ujian tidak ditemukan. Periksa kembali kombinasi karakter token Anda.",
+        message:
+          "Token ujian tidak berlaku lagi. Minta token terbaru kepada pengawas, lalu ketik ulang token tersebut.",
       }
     }
 
@@ -131,6 +151,50 @@ export const verifySessionToken = query({
       return {
         valid: false,
         message: "Sesi ujian ini telah berakhir dan ditutup oleh pengawas.",
+      }
+    }
+
+    // Validasi kecocokan 2 digit santri jika identifier santri dan token 8 karakter disertakan
+    if (args.identifier) {
+      const cleanId = args.identifier.trim()
+      let student = await ctx.db
+        .query("students")
+        .withIndex("by_santri_id", (q) => q.eq("santriId", cleanId))
+        .first()
+
+      if (!student) {
+        student = await ctx.db
+          .query("students")
+          .withIndex("by_nisn", (q) => q.eq("nisn", cleanId))
+          .first()
+      }
+      if (!student) {
+        student = await ctx.db
+          .query("students")
+          .withIndex("by_nis", (q) => q.eq("nis", cleanId))
+          .first()
+      }
+      if (!student) {
+        const allStudents = await ctx.db.query("students").collect()
+        student =
+          allStudents.find(
+            (s) =>
+              identifierMatches(s.santriId, cleanId) ||
+              identifierMatches(s.nis, cleanId) ||
+              identifierMatches(s.nisn, cleanId)
+          ) || null
+      }
+
+      if (raw.length === 8 && student) {
+        const suppliedDigits = raw.slice(6, 8)
+        const validDigits = getValidStudentTwoDigits(student)
+        if (!validDigits.includes(suppliedDigits)) {
+          return {
+            valid: false,
+            message:
+              "2 angka terakhir token tidak cocok dengan nomor induk santri Anda. Pastikan memasukkan 6 huruf token sesi diikuti 2 angka terakhir nomor identitas Anda.",
+          }
+        }
       }
     }
 
@@ -175,11 +239,33 @@ export const getStudentExamSheet = query({
     }
 
     if (participant.status === "submitted") {
+      const session = await ctx.db.get("examSessions", participant.sessionId)
+      const bank = session ? await ctx.db.get("questionBanks", session.bankId) : null
+
       return {
         found: true,
         isSubmitted: true,
         message: "Lembar jawaban ujian ini telah berhasil dikumpulkan.",
         finishedAt: participant.finishedAt,
+        participant: {
+          id: participant._id,
+          studentName: participant.studentName,
+          nisn: participant.nisn,
+          className: participant.className,
+          startedAt: participant.startedAt,
+          durationMinutes: session?.durationMinutes ?? 0,
+          remainingMs: 0,
+          tabViolations: participant.tabViolations ?? 0,
+        },
+        session: session
+          ? {
+              id: session._id,
+              title: session.title,
+              subjectCode: bank?.subjectCode ?? "Ujian",
+              gradeLevel: bank?.gradeLevel ?? "-",
+              totalPoints: bank?.totalPoints ?? 100,
+            }
+          : undefined,
       }
     }
 
@@ -192,10 +278,28 @@ export const getStudentExamSheet = query({
     }
 
     if (session.status === "ended") {
+      const bank = await ctx.db.get("questionBanks", session.bankId)
       return {
         found: true,
         isEnded: true,
         message: "Sesi ujian ini telah ditutup oleh pengawas ujian.",
+        participant: {
+          id: participant._id,
+          studentName: participant.studentName,
+          nisn: participant.nisn,
+          className: participant.className,
+          startedAt: participant.startedAt,
+          durationMinutes: session.durationMinutes,
+          remainingMs: 0,
+          tabViolations: participant.tabViolations ?? 0,
+        },
+        session: {
+          id: session._id,
+          title: session.title,
+          subjectCode: bank?.subjectCode ?? "Ujian",
+          gradeLevel: bank?.gradeLevel ?? "-",
+          totalPoints: bank?.totalPoints ?? 100,
+        },
       }
     }
 
@@ -205,43 +309,54 @@ export const getStudentExamSheet = query({
       .withIndex("by_bank", (q) => q.eq("bankId", session.bankId))
       .collect()
 
-    // Urutkan soal: acak deterministik berdasarkan participant ID atau urut nomor standar
-    let orderedQuestions = [...rawQuestions]
-    if (session.randomizeQuestions) {
-      orderedQuestions = deterministicShuffle(orderedQuestions, participant._id)
-    } else {
-      orderedQuestions.sort((a, b) => a.orderNumber - b.orderNumber)
-    }
+    // Urutkan soal: terkelompok (objektif di awal, esai di akhir) dan diacak deterministik per santri bila randomizeQuestions aktif
+    const orderedQuestions = groupAndShuffleQuestions(
+      rawQuestions,
+      participant._id,
+      session.randomizeQuestions
+    )
 
     // Bersihkan payload (sanitasi ketat: jangan pernah kirim isCorrect atau rubric ke santri)
-    const sanitizedQuestions = orderedQuestions.map((q, idx) => {
-      let options = q.options?.map((opt) => ({
-        id: opt.id,
-        label: opt.label,
-        text: opt.text,
-      }))
-
-      if (session.randomizeOptions && options) {
-        options = deterministicShuffle(options, `${participant._id}_${q._id}`)
-        // Beri label A, B, C, D baru sesuai urutan tampilan yang konsisten
-        const standardLabels = ["A", "B", "C", "D", "E"]
-        options = options.map((opt, i) => ({
-          ...opt,
-          label: standardLabels[i] || opt.label,
+    const sanitizedQuestions = await Promise.all(
+      orderedQuestions.map(async (q, idx) => {
+        let options = q.options?.map((opt) => ({
+          id: opt.id,
+          label: opt.label,
+          text: opt.text,
         }))
-      }
 
-      return {
-        id: q._id,
-        displayNumber: idx + 1,
-        type: q.type,
-        stimulusText: q.stimulusText,
-        stimulusMediaUrl: q.stimulusMediaUrl,
-        questionText: q.questionText,
-        points: q.points,
-        options,
-      }
-    })
+        if (session.randomizeOptions && options) {
+          options = deterministicShuffle(options, `${participant._id}_${q._id}`)
+          // Beri label A, B, C, D baru sesuai urutan tampilan yang konsisten
+          const standardLabels = ["A", "B", "C", "D", "E"]
+          options = options.map((opt, i) => ({
+            ...opt,
+            label: standardLabels[i] || opt.label,
+          }))
+        }
+
+        let mediaUrl = q.stimulusMediaUrl
+        if (q.stimulusMediaStorageId) {
+          try {
+            const storageUrl = await ctx.storage.getUrl(q.stimulusMediaStorageId)
+            if (storageUrl) mediaUrl = storageUrl
+          } catch {
+            // fallback
+          }
+        }
+
+        return {
+          id: q._id,
+          displayNumber: idx + 1,
+          type: q.type,
+          stimulusText: q.stimulusText,
+          stimulusMediaUrl: mediaUrl,
+          questionText: q.questionText,
+          points: q.points,
+          options,
+        }
+      })
+    )
 
     // Ambil jawaban yang telah tersimpan untuk peserta ini
     const existingAnswers = await ctx.db
@@ -266,6 +381,9 @@ export const getStudentExamSheet = query({
       found: true,
       isSubmitted: false,
       isEnded: false,
+      isLocked: participant.lockedAt !== undefined,
+      lockedAt: participant.lockedAt ?? null,
+      savedAnswerCount: existingAnswers.filter(hasSavedAnswer).length,
       participant: {
         id: participant._id,
         studentName: participant.studentName,
@@ -331,27 +449,45 @@ export const getParticipantAnswersForGrading = query({
 
     const answersMap = new Map(studentAnswers.map((a) => [a.questionId, a]))
 
-    const detailedQuestions = questions.map((q) => {
-      const ans = answersMap.get(q._id)
-      return {
-        id: q._id,
-        orderNumber: q.orderNumber,
-        type: q.type,
-        questionText: q.questionText,
-        points: q.points,
-        rubric: q.rubric,
-        options: q.options, // Guru melihat opsi lengkap dengan isCorrect
-        studentAnswer: ans
-          ? {
-              selectedOptionId: ans.selectedOptionId,
-              essayAnswer: ans.essayAnswer,
-              isDoubtful: ans.isDoubtful,
-              scoreAwarded: ans.scoreAwarded,
-              teacherFeedback: ans.teacherFeedback,
-            }
-          : null,
-      }
-    })
+    const detailedQuestions = await Promise.all(
+      questions.map(async (q) => {
+        const ans = answersMap.get(q._id)
+        let mediaUrl = q.stimulusMediaUrl
+        if (q.stimulusMediaStorageId) {
+          try {
+            const storageUrl = await ctx.storage.getUrl(q.stimulusMediaStorageId)
+            if (storageUrl) mediaUrl = storageUrl
+          } catch {
+            // fallback
+          }
+        }
+
+        return {
+          id: q._id,
+          orderNumber: q.orderNumber,
+          type: q.type,
+          stimulusText: q.stimulusText,
+          stimulusMediaUrl: mediaUrl,
+          questionText: q.questionText,
+          points: q.points,
+          rubric: q.rubric,
+          // Hanya pemilik sesi yang sampai ke sini; lembar santri tidak memetakan kolom ini.
+          explanation: q.explanation,
+          thinkingLevel: q.thinkingLevel,
+          achievementRef: q.achievementRef,
+          options: q.options, // Guru melihat opsi lengkap dengan isCorrect
+          studentAnswer: ans
+            ? {
+                selectedOptionId: ans.selectedOptionId,
+                essayAnswer: ans.essayAnswer,
+                isDoubtful: ans.isDoubtful,
+                scoreAwarded: ans.scoreAwarded,
+                teacherFeedback: ans.teacherFeedback,
+              }
+            : null,
+        }
+      })
+    )
 
     return {
       participant,
@@ -386,6 +522,18 @@ export const listSessionParticipants = query({
       .order("desc")
       .collect()
 
-    return participants
+    return Promise.all(
+      participants.map(async (participant) => {
+        const answers = await ctx.db
+          .query("studentAnswers")
+          .withIndex("by_participant", (q) => q.eq("participantId", participant._id))
+          .collect()
+
+        return {
+          ...participant,
+          savedAnswerCount: answers.filter(hasSavedAnswer).length,
+        }
+      })
+    )
   },
 })

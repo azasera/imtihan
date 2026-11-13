@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useMutation, useQuery } from "convex/react"
 import {
   BookOpenIcon,
+  CheckCircle2Icon,
   FolderPlusIcon,
   GraduationCapIcon,
   LayersIcon,
@@ -18,7 +19,9 @@ import { toast } from "sonner"
 
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { INSTITUTION_LABELS, INSTITUTION_LEVELS, INSTITUTION_NAMES, INSTITUTIONS, type Institution } from "@/convex/model/institutions"
 import { authClient } from "@/lib/auth-client"
+import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -49,8 +52,11 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
-export default function BankSoalPage() {
+function BankSoalContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const actionParam = searchParams.get("action")
+
   const { data: session, isPending: isSessionPending } = authClient.useSession()
   const questionBanks = useQuery(api.bank.public.queries.listQuestionBanks, {})
   const subjects = useQuery(api.bank.public.queries.listSubjects, {})
@@ -62,13 +68,39 @@ export default function BankSoalPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [selectedSubject, setSelectedSubject] = React.useState<string>("all")
 
+  // Alihkan langsung ke Studio Pembuatan jika parameter action=new diterima
+  React.useEffect(() => {
+    if (actionParam === "new") {
+      router.replace("/bank-soal/baru")
+    }
+  }, [actionParam, router])
+
   // Form states
   const [title, setTitle] = React.useState("")
   const [subjectCode, setSubjectCode] = React.useState("")
-  const [gradeLevel, setGradeLevel] = React.useState("Kelas 7")
+  const [institution, setInstitution] = React.useState<Institution | "">("")
+  const [gradeLevel, setGradeLevel] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [totalPoints, setTotalPoints] = React.useState(100)
   const [passingScore, setPassingScore] = React.useState(75)
+
+  // Mata pelajaran nonaktif tidak lagi ditawarkan, tetapi paket lama tetap memakai namanya.
+  const selectableSubjects = React.useMemo(
+    () => (subjects ?? []).filter((s) => s.isActive !== false),
+    [subjects]
+  )
+  const subjectNameByCode = React.useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of subjects ?? []) map.set(s.code, s.name)
+    return map
+  }, [subjects])
+
+  function handleInstitutionChange(value: string | null) {
+    const next = (value ?? "") as Institution | ""
+    setInstitution(next)
+    // Tingkat bergantung lembaga, jadi pilihan lama harus dibuang, bukan dipertahankan diam-diam.
+    setGradeLevel("")
+  }
 
   async function handleCreateBank(e: React.FormEvent) {
     e.preventDefault()
@@ -85,12 +117,21 @@ export default function BankSoalPage() {
       toast.error("Silakan pilih mata pelajaran.")
       return
     }
+    if (!institution) {
+      toast.error("Silakan pilih lembaga terlebih dahulu sebelum memilih tingkat.")
+      return
+    }
+    if (!gradeLevel) {
+      toast.error("Silakan pilih tingkat / kelas resmi lembaga ini.")
+      return
+    }
 
     try {
       setIsSubmitting(true)
       const newBankId = await createBank({
         title: title.trim(),
         subjectCode,
+        institution,
         gradeLevel,
         description: description.trim() || undefined,
         totalPoints: Number(totalPoints),
@@ -117,19 +158,36 @@ export default function BankSoalPage() {
     }
   }
 
-  async function handleDeleteBank(bankId: Id<"questionBanks">, bankTitle: string) {
+  async function handleDeleteBank(
+    bankId: Id<"questionBanks">,
+    bankTitle: string,
+    sessionCount: number,
+    activeSessionTitle?: string | null
+  ) {
     if (!session?.user) {
       toast.error("Silakan login terlebih dahulu.")
       router.push("/login")
       return
     }
-    if (!confirm(`Apakah Anda yakin ingin menghapus paket "${bankTitle}" beserta seluruh butir soalnya?`)) {
+
+    if (sessionCount > 0) {
+      toast.error(
+        `Paket "${bankTitle}" tidak dapat dihapus karena sudah dipakai pada sesi ujian${activeSessionTitle ? ` "${activeSessionTitle}"` : ""}.`
+      )
+      return
+    }
+
+    if (
+      !confirm(
+        `Apakah Anda yakin ingin menghapus paket bank soal "${bankTitle}" beserta seluruh butir soalnya? Tindakan ini tidak dapat dibatalkan.`
+      )
+    ) {
       return
     }
 
     try {
       await deleteBank({ bankId })
-      toast.success("Paket bank soal berhasil dihapus.")
+      toast.success(`Paket bank soal "${bankTitle}" berhasil dihapus.`)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal menghapus paket bank soal."
       toast.error(msg)
@@ -162,27 +220,44 @@ export default function BankSoalPage() {
           <p className="text-sm text-muted-foreground mt-0.5">
             Susun paket butir soal pilihan ganda dan essay untuk pelaksanaan ujian santri terstandar.
           </p>
+          <Link
+            href="/mata-pelajaran"
+            className={buttonVariants({
+              variant: "ghost",
+              size: "sm",
+              className: "-ml-2 mt-1 gap-1.5 text-xs text-muted-foreground hover:text-foreground",
+            })}
+          >
+            <BookOpenIcon className="size-3.5" />
+            Kelola Mata Pelajaran
+          </Link>
         </div>
 
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            if (open && !session?.user) {
-              toast.error("Silakan login terlebih dahulu sebagai pengajar untuk membuat paket bank soal.")
-              router.push("/login")
-              return
-            }
-            setIsDialogOpen(open)
-          }}
-        >
-          <DialogTrigger
-            render={
-              <Button className="shrink-0 gap-1.5">
-                <PlusIcon className="size-4" />
-                Buat Paket Bank Soal
-              </Button>
-            }
-          />
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/bank-soal/baru"
+            className={buttonVariants({
+              className: "gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm",
+            })}
+          >
+            <PlusIcon className="size-4" />
+            <span>Buat Paket Bank Soal</span>
+          </Link>
+
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              if (open && !session?.user) {
+                toast.error("Silakan login terlebih dahulu sebagai pengajar untuk membuat paket bank soal.")
+                router.push("/login")
+                return
+              }
+              setIsDialogOpen(open)
+              if (!open && actionParam === "new") {
+                router.replace("/bank-soal")
+              }
+            }}
+          >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="font-heading">Paket Bank Soal Baru</DialogTitle>
@@ -206,12 +281,19 @@ export default function BankSoalPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="bank-subject">Mata Pelajaran *</Label>
-                  <Select value={subjectCode} onValueChange={(val) => setSubjectCode(val ?? "")}>
+                  <Select
+                    items={selectableSubjects.map((subject) => ({
+                      value: subject.code,
+                      label: subject.name,
+                    }))}
+                    value={subjectCode}
+                    onValueChange={(val) => setSubjectCode(val ?? "")}
+                  >
                     <SelectTrigger id="bank-subject" className="w-full">
                       <SelectValue placeholder="Pilih mapel..." />
                     </SelectTrigger>
-                    <SelectContent>
-                      {subjects?.map((s) => (
+                    <SelectContent className="w-[var(--anchor-width)] min-w-[300px] sm:min-w-[360px] rounded-md shadow-lg border">
+                      {selectableSubjects.map((s) => (
                         <SelectItem key={s.code} value={s.code}>
                           {s.name}
                         </SelectItem>
@@ -221,22 +303,55 @@ export default function BankSoalPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="bank-grade">Tingkat / Kelas</Label>
-                  <Select value={gradeLevel} onValueChange={(val) => setGradeLevel(val ?? "Kelas 7")}>
-                    <SelectTrigger id="bank-grade" className="w-full">
-                      <SelectValue placeholder="Pilih kelas..." />
+                  <Label htmlFor="bank-institution">Lembaga *</Label>
+                  <Select
+                    items={INSTITUTIONS.map((item) => ({
+                      value: item,
+                      label: item,
+                    }))}
+                    value={institution}
+                    onValueChange={handleInstitutionChange}
+                  >
+                    <SelectTrigger id="bank-institution" className="w-full">
+                      <SelectValue placeholder="Pilih lembaga..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Kelas 7">Kelas 7 / Ula 1</SelectItem>
-                      <SelectItem value="Kelas 8">Kelas 8 / Ula 2</SelectItem>
-                      <SelectItem value="Kelas 9">Kelas 9 / Ula 3</SelectItem>
-                      <SelectItem value="Kelas 10">Kelas 10 / Wustha 1</SelectItem>
-                      <SelectItem value="Kelas 11">Kelas 11 / Wustha 2</SelectItem>
-                      <SelectItem value="Kelas 12">Kelas 12 / Wustha 3</SelectItem>
-                      <SelectItem value="Tarbiyah / Takhassus">Tarbiyah / Takhassus</SelectItem>
+                      {INSTITUTIONS.map((item) => (
+                        <SelectItem key={item} value={item}>
+                          {item}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="bank-grade">Tingkat / Kelas *</Label>
+                <Select
+                  items={(institution ? INSTITUTION_LEVELS[institution] : []).map((level) => ({
+                    value: level,
+                    label: level,
+                  }))}
+                  value={gradeLevel}
+                  onValueChange={(val) => setGradeLevel(val ?? "")}
+                  disabled={!institution}
+                >
+                  <SelectTrigger id="bank-grade" className="w-full">
+                    <SelectValue placeholder={institution ? "Pilih tingkat..." : "Pilih lembaga terlebih dahulu"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(institution ? INSTITUTION_LEVELS[institution] : []).map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {level}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Tingkat mengikuti jenjang resmi lembaga yang sama dengan data santri; memilih lembaga
+                  baru mengosongkan tingkat yang sudah dipilih.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -291,6 +406,54 @@ export default function BankSoalPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
+      </div>
+
+      {/* Kartu Metrik Portofolio Bank Soal */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card className="border bg-card/60 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium">Total Paket</span>
+            <LayersIcon className="size-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-foreground">
+            {questionBanks?.length ?? 0}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Paket asesmen terdaftar</p>
+        </Card>
+
+        <Card className="border bg-card/60 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium">Aktif di Sesi</span>
+            <CheckCircle2Icon className="size-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-foreground">
+            {questionBanks?.filter((b) => Boolean(b.sessionCount && b.sessionCount > 0)).length ?? 0}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Dipakai pada ujian santri</p>
+        </Card>
+
+        <Card className="border bg-card/60 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium">Draf / Mandiri</span>
+            <FolderPlusIcon className="size-4 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-foreground">
+            {questionBanks?.filter((b) => !b.sessionCount || b.sessionCount === 0).length ?? 0}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Siap dijadwalkan</p>
+        </Card>
+
+        <Card className="border bg-card/60 p-4 shadow-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span className="text-xs font-medium">Mata Pelajaran</span>
+            <BookOpenIcon className="size-4 text-teal-600 dark:text-teal-400" />
+          </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-foreground">
+            {new Set(questionBanks?.map((b) => b.subjectCode)).size}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Bidang studi tercakup</p>
+        </Card>
       </div>
 
       {!isSessionPending && !session?.user && (
@@ -320,7 +483,14 @@ export default function BankSoalPage() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Select value={selectedSubject} onValueChange={(val) => setSelectedSubject(val ?? "all")}>
+          <Select
+            items={[
+              { value: "all", label: "Semua Mata Pelajaran" },
+              ...(subjects?.map((subject) => ({ value: subject.code, label: subject.name })) ?? []),
+            ]}
+            value={selectedSubject}
+            onValueChange={(val) => setSelectedSubject(val ?? "all")}
+          >
             <SelectTrigger className="w-full sm:w-56 text-xs sm:text-sm">
               <SelectValue placeholder="Semua Mata Pelajaran" />
             </SelectTrigger>
@@ -352,10 +522,16 @@ export default function BankSoalPage() {
               Mulai buat paket bank soal pertama Anda untuk menyusun lembar pertanyaan santri.
             </p>
           </div>
-          <Button onClick={() => setIsDialogOpen(true)} size="sm" className="mt-2 gap-1.5">
+          <Link
+            href="/bank-soal/baru"
+            className={buttonVariants({
+              size: "sm",
+              className: "mt-2 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold",
+            })}
+          >
             <PlusIcon className="size-4" />
             Buat Paket Bank Soal Sekarang
-          </Button>
+          </Link>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -364,7 +540,7 @@ export default function BankSoalPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <Badge variant="secondary" className="text-xs font-normal">
-                    {bank.subjectCode}
+                    {subjectNameByCode.get(bank.subjectCode) ?? bank.subjectCode}
                   </Badge>
                   <Badge variant="outline" className="text-xs font-mono">
                     {bank.gradeLevel}
@@ -389,12 +565,24 @@ export default function BankSoalPage() {
                   <span>Standar KKM:</span>
                   <span className="font-semibold font-mono text-foreground">{bank.passingScore}</span>
                 </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span>Status Pemakaian:</span>
+                  {Boolean(bank.sessionCount && bank.sessionCount > 0) ? (
+                    <Badge variant="outline" className="text-[11px] font-normal border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-500/10">
+                      Dipakai ({bank.sessionCount} sesi)
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">
+                      Belum dipakai
+                    </Badge>
+                  )}
+                </div>
               </CardContent>
 
               <CardFooter className="pt-2 border-t flex items-center justify-between gap-2">
                 <Link
                   href={`/bank-soal/${bank._id}`}
-                  className={buttonVariants({ size: "sm", className: "w-full text-xs gap-1.5" })}
+                  className={buttonVariants({ size: "sm", className: "flex-1 text-xs gap-1.5" })}
                 >
                   <LayersIcon className="size-3.5" />
                   Kelola Butir Soal
@@ -402,9 +590,19 @@ export default function BankSoalPage() {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="size-8 text-destructive hover:bg-destructive/10 shrink-0"
-                  onClick={() => handleDeleteBank(bank._id, bank.title)}
-                  title="Hapus paket bank soal"
+                  disabled={Boolean(bank.sessionCount && bank.sessionCount > 0)}
+                  className={cn(
+                    "size-8 shrink-0",
+                    bank.sessionCount && bank.sessionCount > 0
+                      ? "opacity-40 cursor-not-allowed text-muted-foreground"
+                      : "text-destructive hover:bg-destructive/10"
+                  )}
+                  onClick={() => handleDeleteBank(bank._id, bank.title, bank.sessionCount ?? 0, bank.activeSessionTitle)}
+                  title={
+                    bank.sessionCount && bank.sessionCount > 0
+                      ? `Paket terkunci karena sudah dipakai pada sesi ujian${bank.activeSessionTitle ? ` (${bank.activeSessionTitle})` : ""}`
+                      : "Hapus paket bank soal"
+                  }
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
@@ -414,5 +612,13 @@ export default function BankSoalPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function BankSoalPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <BankSoalContent />
+    </React.Suspense>
   )
 }

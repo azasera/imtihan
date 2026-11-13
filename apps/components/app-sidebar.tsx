@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import Image from "next/image"
+import Link from "next/link"
 
-import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
@@ -22,17 +22,13 @@ import {
   LayoutDashboardIcon,
   ListIcon,
   ChartBarIcon,
-  FolderIcon,
   UsersIcon,
-  CameraIcon,
   FileTextIcon,
+  BookOpenIcon,
   Settings2Icon,
-  CircleHelpIcon,
-  SearchIcon,
-  DatabaseIcon,
-  FileChartColumnIcon,
-  FileIcon,
   CommandIcon,
+  MonitorIcon,
+  GraduationCapIcon,
 } from "lucide-react"
 
 const data = {
@@ -48,14 +44,29 @@ const data = {
       icon: <FileTextIcon />,
     },
     {
+      title: "Mata Pelajaran",
+      url: "/mata-pelajaran",
+      icon: <BookOpenIcon />,
+    },
+    {
       title: "Sesi Ujian",
       url: "/sesi-ujian",
       icon: <ListIcon />,
     },
     {
+      title: "Monitoring Sesi",
+      url: "/monitoring-sesi",
+      icon: <MonitorIcon />,
+    },
+    {
       title: "Rekap Nilai",
       url: "/rekap-nilai",
       icon: <ChartBarIcon />,
+    },
+    {
+      title: "E-Rapor",
+      url: "/rapor",
+      icon: <GraduationCapIcon />,
     },
     {
       title: "Data Santri",
@@ -68,86 +79,11 @@ const data = {
       icon: <CommandIcon />,
     },
   ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: <CameraIcon />,
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: <FileTextIcon />,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: <FileTextIcon />,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-  ],
   navSecondary: [
     {
-      title: "Settings",
-      url: "#",
+      title: "Pengaturan Akun",
+      url: "/account",
       icon: <Settings2Icon />,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: <CircleHelpIcon />,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: <SearchIcon />,
-    },
-  ],
-  documents: [
-    {
-      name: "Bank Soal",
-      url: "/bank-soal",
-      icon: <DatabaseIcon />,
-    },
-    {
-      name: "Rekap Nilai",
-      url: "/rekap-nilai",
-      icon: <FileChartColumnIcon />,
-    },
-    {
-      name: "Jadwal Ujian",
-      url: "/sesi-ujian",
-      icon: <FileIcon />,
     },
   ],
 }
@@ -191,29 +127,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="border-b border-sidebar-border/40 pb-2.5">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-              render={<a href="#" />}
+              size="lg"
+              className="data-[slot=sidebar-menu-button]:p-2! hover:bg-sidebar-accent/50 rounded-lg transition-colors gap-2.5"
+              render={<Link href="/" />}
             >
-              <Image
-                src="/logo.png"
-                alt={siteConfig.name}
-                width={24}
-                height={24}
-                className="size-6! rounded object-contain"
-                priority
-              />
-              <span className="text-base font-semibold">{siteConfig.name}</span>
+              <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+                <Image
+                  src="/logo.png"
+                  alt={siteConfig.name}
+                  width={20}
+                  height={20}
+                  className="size-5 rounded object-contain"
+                  priority
+                />
+              </div>
+              <div className="flex flex-col gap-0.5 leading-none">
+                <span className="text-sm font-bold tracking-tight font-heading text-foreground">{siteConfig.name}</span>
+                <span className="text-[10.5px] text-muted-foreground font-normal">Pesantren Islamic Centre At-Tauhid</span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>

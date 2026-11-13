@@ -1,14 +1,30 @@
 import { action } from "../../_generated/server"
 import { internal } from "../../_generated/api"
 import { requireAuthenticatedUser } from "../../model/auth"
+import { officialNisn } from "../../model/nisn"
+import { cleanStudentName } from "../../model/nisn"
 
 // Sumber data dikunci di sisi server: pemanggil tidak boleh menentukan URL
 // karena action ini menulis ke seluruh tabel master santri.
 const SIPAKSA_ENDPOINT = "https://sipaksa.azaseradigital.workers.dev/api/setoran?status=aktif&limit=3000"
 
+export interface SyncResult {
+  success: boolean
+  totalFetched: number
+  totalFiltered: number
+  totalInserted: number
+  totalUpdated: number
+  totalPruned: number
+  byJenjang: {
+    SMPITA: number
+    SMAITA: number
+    MTA: number
+  }
+}
+
 export const syncStudentsFromSipaksa = action({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<SyncResult> => {
     await requireAuthenticatedUser(ctx)
 
     const res = await fetch(SIPAKSA_ENDPOINT)
@@ -51,9 +67,9 @@ export const syncStudentsFromSipaksa = action({
     const payload = filtered.map((s) => ({
       santriId: (s.santriId || s.id_santri || s.id) as string,
       sipaksaId: (s.id || s.santriId || "") as string,
-      nama: (s.nama || "").trim(),
+      nama: cleanStudentName(s.nama || ""),
       nis: s.nis ? String(s.nis).trim() : undefined,
-      nisn: s.nisn ? String(s.nisn).trim() : undefined,
+      nisn: officialNisn(String(s.nisn ?? "")),
       jenjang: s.jenjang as "SMPITA" | "SMAITA" | "MTA",
       kelas: s.kelas || "-",
       jenisKelamin: s.jenisKelamin || "L",
@@ -65,6 +81,7 @@ export const syncStudentsFromSipaksa = action({
       targetJuz: typeof s.targetJuz === "number" ? s.targetJuz : undefined,
     }))
 
+    const syncTimestamp = Date.now()
     // Batch proses per 100 santri untuk efisiensi transaksi Convex
     const BATCH_SIZE = 100
     let totalInserted = 0
@@ -74,10 +91,21 @@ export const syncStudentsFromSipaksa = action({
       const chunk = payload.slice(i, i + BATCH_SIZE)
       const result = await ctx.runMutation(internal.students.private.mutations.upsertStudentsBatch, {
         students: chunk,
+        syncTimestamp,
       })
       totalInserted += result.inserted
       totalUpdated += result.updated
     }
+
+    // Pangkas data santri lama/stale yang sudah tidak ada di SiPAKSa aktif
+    const activeSantriIds = payload.map((s) => s.santriId)
+    const pruneResult = (await ctx.runMutation(
+      internal.students.private.mutations.pruneStaleStudents,
+      {
+        currentSyncTimestamp: syncTimestamp,
+        activeSantriIds,
+      }
+    )) as { pruned: number }
 
     const byJenjang = {
       SMPITA: payload.filter((s) => s.jenjang === "SMPITA").length,
@@ -91,6 +119,7 @@ export const syncStudentsFromSipaksa = action({
       totalFiltered: payload.length,
       totalInserted,
       totalUpdated,
+      totalPruned: pruneResult.pruned,
       byJenjang,
     }
   },

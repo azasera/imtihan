@@ -15,13 +15,17 @@ import {
   HelpCircleIcon,
   LayoutGridIcon,
   Loader2Icon,
+  LockIcon,
   SendIcon,
   ShieldAlertIcon,
+  XCircleIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { formatSavedAnswerCount } from "@/lib/session-integrity"
+import { playIntegrityAlert } from "@/lib/audio-alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -83,6 +87,9 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   const [localViolationCount, setLocalViolationCount] = React.useState<number | null>(null)
   const [isViolationModalOpen, setIsViolationModalOpen] = React.useState(false)
 
+  // Satu perpindahan hanya dihitung sekali sampai santri benar-benar kembali.
+  const isAwayRef = React.useRef(false)
+
   // Mobile drawer/sheet state toggles
   const [mobileStimulusOpen, setMobileStimulusOpen] = React.useState(false)
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false)
@@ -90,11 +97,27 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   // Sisa waktu pengerjaan dalam detik; hanya diisi dari callback waktu (lihat efek timer).
   const [remainingSeconds, setRemainingSeconds] = React.useState<number | null>(null)
 
+  // Simpan cache data peserta dan sesi agar tidak pernah kosong saat transisi refetch query
+  const cachedParticipantRef = React.useRef(sheet?.participant)
+  const cachedSessionRef = React.useRef(sheet?.session)
+
+  if (sheet?.participant) {
+    cachedParticipantRef.current = sheet.participant
+  }
+  if (sheet?.session) {
+    cachedSessionRef.current = sheet.session
+  }
+
+  const completionParticipant = sheet?.participant ?? cachedParticipantRef.current
+  const completionSession = sheet?.session ?? cachedSessionRef.current
+
   const isCompleted = hasSubmittedLocally || !!sheet?.isSubmitted
 
   // Lembar yang masih bisa dikerjakan (belum selesai dan sesi belum ditutup)
   const activeSheet =
     sheet && sheet.found && !sheet.isSubmitted && !sheet.isEnded ? sheet : null
+
+  const isLocked = activeSheet?.isLocked === true
 
   const serverAnswers = React.useMemo(() => {
     const initialMap: Record<string, StudentAnswerState> = {}
@@ -120,40 +143,55 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
 
   // Proteksi Integritas Ujian (Deteksi Perpindahan Tab / Window Blur)
   React.useEffect(() => {
-    if (isCompleted || sheet?.isSubmitted || !sheet?.found) return
+    if (isCompleted || sheet?.isSubmitted || !sheet?.found || isLocked) return
 
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        recordViolation({ participantId })
-          .then((res) => {
-            if (res.tabViolations !== undefined) {
-              setLocalViolationCount(res.tabViolations)
-            }
-          })
-          .catch(() => {})
-      } else {
-        setIsViolationModalOpen(true)
-      }
-    }
+    isAwayRef.current = false
 
-    const handleWindowBlur = () => {
+    const recordAwayOnce = () => {
+      if (isAwayRef.current) return
+      isAwayRef.current = true
+
       recordViolation({ participantId })
         .then((res) => {
           if (res.tabViolations !== undefined) {
             setLocalViolationCount(res.tabViolations)
           }
+          if (res.locked) {
+            setIsViolationModalOpen(false)
+          }
         })
         .catch(() => {})
     }
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        recordAwayOnce()
+        return
+      }
+
+      isAwayRef.current = false
+      setIsViolationModalOpen(true)
+      playIntegrityAlert()
+    }
+
+    const handleWindowBlur = () => {
+      recordAwayOnce()
+    }
+
+    const handleWindowFocus = () => {
+      isAwayRef.current = false
+    }
+
     document.addEventListener("visibilitychange", handleVisibilityChange)
     window.addEventListener("blur", handleWindowBlur)
+    window.addEventListener("focus", handleWindowFocus)
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange)
       window.removeEventListener("blur", handleWindowBlur)
+      window.removeEventListener("focus", handleWindowFocus)
     }
-  }, [isCompleted, sheet?.isSubmitted, sheet?.found, participantId, recordViolation])
+  }, [isCompleted, sheet?.isSubmitted, sheet?.found, isLocked, participantId, recordViolation])
 
   const formatTimer = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
@@ -170,9 +208,17 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   const currentQuestion = sheet?.questions ? sheet.questions[currentIndex] : null
   const currentAnswer = currentQuestion ? answersMap[currentQuestion.id] : undefined
 
+  const warnLocked = () => {
+    toast.warning("Lembar sedang dikunci. Hubungi pengajar untuk membuka kunci.")
+  }
+
   // Handler memilih opsi pilihan ganda biasa
   const handleSelectOption = async (optionId: string) => {
     if (!currentQuestion) return
+    if (isLocked) {
+      warnLocked()
+      return
+    }
 
     const updated: StudentAnswerState = {
       ...currentAnswer,
@@ -203,6 +249,10 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   // Handler toggle opsi pilihan ganda kompleks (multi-select)
   const handleToggleComplexOption = async (optionId: string) => {
     if (!currentQuestion) return
+    if (isLocked) {
+      warnLocked()
+      return
+    }
 
     const currentSelected = currentAnswer?.selectedOptionIds ?? []
     const isIncluded = currentSelected.includes(optionId)
@@ -239,6 +289,10 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   // Handler memilih benar/salah
   const handleSelectTrueFalse = async (value: "true" | "false") => {
     if (!currentQuestion) return
+    if (isLocked) {
+      warnLocked()
+      return
+    }
 
     const updated: StudentAnswerState = {
       ...currentAnswer,
@@ -269,6 +323,10 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   // Handler perubahan teks essay
   const handleEssayChange = async (text: string) => {
     if (!currentQuestion) return
+    if (isLocked) {
+      warnLocked()
+      return
+    }
 
     const updated: StudentAnswerState = {
       ...currentAnswer,
@@ -298,8 +356,26 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   // Handler toggle ragu-ragu
   const handleToggleDoubtful = async () => {
     if (!currentQuestion) return
+    if (isLocked) {
+      warnLocked()
+      return
+    }
+
+    const hasCurrentAnswer = Boolean(
+      currentAnswer &&
+        (Boolean(currentAnswer.selectedOptionId) ||
+          Boolean(currentAnswer.selectedOptionIds && currentAnswer.selectedOptionIds.length > 0) ||
+          Boolean(currentAnswer.essayAnswer && currentAnswer.essayAnswer.trim().length > 0))
+    )
 
     const newDoubtful = !currentAnswer?.isDoubtful
+
+    // Mencegah penandaan ragu-ragu jika butir soal belum memiliki jawaban
+    if (newDoubtful && !hasCurrentAnswer) {
+      toast.info("Pilih atau isi jawaban terlebih dahulu sebelum menandai ragu-ragu.")
+      return
+    }
+
     const updated: StudentAnswerState = {
       ...currentAnswer,
       isDoubtful: newDoubtful,
@@ -327,6 +403,11 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   // Final Submit Handler
   const handleFinalSubmit = React.useCallback(
     async (auto = false) => {
+      if (isLocked && !auto) {
+        toast.warning("Lembar sedang dikunci. Minta pengajar membuka kunci sebelum mengumpulkan.")
+        return
+      }
+
       setIsSubmittingFinal(true)
       try {
         await submitExam({ participantId })
@@ -344,7 +425,7 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
         setIsSubmittingFinal(false)
       }
     },
-    [participantId, submitExam]
+    [participantId, submitExam, isLocked]
   )
 
   // Hitung mundur pengerjaan + pengumpulan otomatis saat waktu habis.
@@ -420,19 +501,21 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
           <div className="p-3 bg-muted/40 rounded-lg text-xs space-y-1.5 border text-left">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Nama Santri:</span>
-              <span className="font-semibold">{sheet.participant?.studentName}</span>
+              <span className="font-semibold">{completionParticipant?.studentName || "-"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">NISN:</span>
-              <span className="font-mono">{sheet.participant?.nisn}</span>
+              <span className="font-mono">{completionParticipant?.nisn || "-"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Mata Pelajaran:</span>
-              <span className="font-semibold">{sheet.session?.subjectCode}</span>
+              <span className="font-semibold">
+                {completionSession?.subjectCode || completionSession?.title || "-"}
+              </span>
             </div>
             {violationsCount > 0 && (
               <div className="flex justify-between pt-1 border-t text-amber-600 dark:text-amber-400">
-                <span>Catatan Pelanggaran Tab:</span>
+                <span>Catatan Pelanggaran Layar:</span>
                 <span className="font-semibold">{violationsCount} kali</span>
               </div>
             )}
@@ -462,23 +545,32 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
   const questions = sheet.questions ?? []
   const totalQuestions = questions.length
 
-  // Hitung ringkasan status pengerjaan
-  let answeredCount = 0
-  let doubtfulCount = 0
+  // Hitung ringkasan status pengerjaan secara konsisten dan akurat (partisi eksklusif)
+  let answeredSureCount = 0 // Sudah dijawab & pasti (tidak ragu-ragu)
+  let doubtfulCount = 0     // Sudah dijawab & ragu-ragu
+  let unansweredCount = 0   // Belum dijawab / kosong
+  let totalAnswered = 0     // Total semua soal yang sudah terisi jawaban (pasti + ragu-ragu)
+
   questions.forEach((q) => {
     const ans = answersMap[q.id]
-    if (ans) {
-      if (ans.isDoubtful) doubtfulCount++
-      const hasAnswer =
-        Boolean(ans.selectedOptionId) ||
-        Boolean(ans.selectedOptionIds && ans.selectedOptionIds.length > 0) ||
-        Boolean(ans.essayAnswer && ans.essayAnswer.trim().length > 0)
-      if (hasAnswer) {
-        answeredCount++
+    const hasAnswer = Boolean(
+      ans &&
+        (Boolean(ans.selectedOptionId) ||
+          Boolean(ans.selectedOptionIds && ans.selectedOptionIds.length > 0) ||
+          Boolean(ans.essayAnswer && ans.essayAnswer.trim().length > 0))
+    )
+
+    if (hasAnswer) {
+      totalAnswered++
+      if (ans?.isDoubtful) {
+        doubtfulCount++
+      } else {
+        answeredSureCount++
       }
+    } else {
+      unansweredCount++
     }
   })
-  const unansweredCount = totalQuestions - answeredCount
 
   function getQuestionTypeLabel(type: string) {
     switch (type) {
@@ -564,102 +656,155 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
             </Button>
           </div>
 
-          <div className="text-[11px] hidden sm:flex items-center gap-1.5 text-muted-foreground">
+          {/* Indikator Status Simpan Otomatis */}
+          <div className="hidden sm:flex items-center">
             {saveStatus === "saving" ? (
-              <>
-                <Loader2Icon className="size-3 animate-spin text-primary" />
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                <Loader2Icon className="size-3 animate-spin text-amber-600" />
                 <span className="hidden md:inline">Menyimpan...</span>
-              </>
+              </div>
             ) : saveStatus === "error" ? (
-              <span className="text-destructive flex items-center gap-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-destructive/10 text-destructive border border-destructive/30">
                 <AlertCircleIcon className="size-3" />
-                Koneksi lambat
-              </span>
+                <span className="hidden md:inline">Koneksi Terganggu</span>
+              </div>
             ) : (
-              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle2Icon className="size-3" />
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 transition-colors">
+                <CheckCircle2Icon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span className="hidden md:inline">Tersimpan</span>
-              </span>
+              </div>
             )}
           </div>
 
-          {/* Timer Display */}
+          {/* Timer Display dengan Status Peringatan Bertahap */}
           <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-bold text-xs sm:text-sm tracking-wider ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-bold text-xs sm:text-sm tracking-wider transition-colors ${
               remainingSeconds !== null && remainingSeconds < 300
-                ? "bg-destructive/10 text-destructive border-destructive/40 animate-pulse"
-                : "bg-card text-foreground"
+                ? "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/50 animate-pulse font-extrabold shadow-2xs"
+                : remainingSeconds !== null && remainingSeconds < 600
+                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/50 animate-pulse font-bold"
+                  : "bg-card text-foreground"
             }`}
+            title="Sisa Waktu Pengerjaan Ujian"
           >
             <ClockIcon className="size-3.5" />
             <span>{remainingSeconds !== null ? formatTimer(remainingSeconds) : "--:--"}</span>
           </div>
 
+          {/* Tombol Kumpulkan Cepat di Header (Aksi Sekunder / Ringkas) */}
           <Button
-            variant="default"
+            variant="outline"
             size="sm"
             onClick={() => setIsSubmitDialogOpen(true)}
-            className="text-xs gap-1.5 bg-primary"
+            disabled={isLocked}
+            title={isLocked ? "Lembar sedang dikunci" : undefined}
+            className="text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary font-medium"
           >
             <SendIcon className="size-3.5" />
-            <span className="hidden sm:inline">Selesaikan Ujian</span>
+            <span className="hidden sm:inline">Kumpulkan</span>
           </Button>
         </div>
       </header>
 
-      {/* Main 3-Panel Layout Container */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* PANEL 1: Wacana / Stimulus (Desktop 4 Cols, Scrollable Independen) */}
-        <div className="hidden lg:block lg:col-span-4 space-y-3">
-          <Card className="border shadow-xs max-h-[calc(100vh-140px)] flex flex-col">
-            <CardHeader className="p-3.5 pb-2 border-b bg-muted/20 shrink-0">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-heading text-xs font-semibold text-primary">
-                  <BookOpenIcon className="size-4" />
-                  Wacana / Stimulus
-                </div>
-                <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                  Bacaan Mandiri
-                </Badge>
+      {/* Progress Bar Kemajuan Pengerjaan Real-time */}
+      <div
+        className="w-full bg-muted/50 h-1.5 overflow-hidden border-b border-border/40"
+        role="progressbar"
+        aria-valuenow={totalAnswered}
+        aria-valuemin={0}
+        aria-valuemax={totalQuestions}
+        title={`Kemajuan Pengerjaan: ${totalAnswered} dari ${totalQuestions} soal terjawab (${Math.round((totalAnswered / (totalQuestions || 1)) * 100)}%)`}
+      >
+        <div
+          className="bg-primary h-full transition-all duration-300 ease-out"
+          style={{
+            width: `${totalQuestions > 0 ? (totalAnswered / totalQuestions) * 100 : 0}%`,
+          }}
+        />
+      </div>
+
+      {isLocked && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="border-b border-destructive/30 bg-destructive/5 px-4 sm:px-6 py-3.5"
+        >
+          <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center gap-3">
+            <div className="flex items-start gap-3">
+              <div className="size-10 rounded-full bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
+                <LockIcon className="size-5" />
               </div>
-            </CardHeader>
-
-            <CardContent className="p-4 overflow-y-auto space-y-3 text-xs leading-relaxed">
-              {hasStimulus ? (
-                <>
-                  {currentQuestion?.stimulusMediaUrl && (
-                    <div className="rounded border overflow-hidden bg-background flex items-center justify-center p-1">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={currentQuestion.stimulusMediaUrl}
-                        alt="Media wacana stimulus"
-                        className="object-contain max-h-56 w-full rounded"
-                      />
-                    </div>
-                  )}
-                  {currentQuestion?.stimulusText && (
-                    <p className="whitespace-pre-line text-foreground/90 font-sans leading-relaxed text-xs sm:text-[13px]">
-                      {currentQuestion.stimulusText}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div className="p-4 rounded-lg border border-dashed text-center text-muted-foreground space-y-2 my-auto">
-                  <FileTextIcon className="size-7 mx-auto text-muted-foreground/50" />
-                  <p className="text-xs">
-                    Soal nomor ini bersifat langsung tanpa teks wacana bacaan terpisah.
-                  </p>
-                  <p className="text-[11px] text-muted-foreground/80">
-                    Silakan baca butir pertanyaan pada panel di samping dengan saksama.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-bold font-heading text-destructive">
+                  Lembar Anda dikunci
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Sesi <span className="font-semibold text-foreground">{sheet.session?.title}</span>{" "}
+                  dihentikan sementara karena Anda melewati ambang perpindahan tab. Hubungi pengajar
+                  untuk membuka kunci; jawaban yang sudah tersimpan tidak akan hilang. Waktu tetap
+                  berjalan dan lembar terkumpul otomatis saat waktu habis.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs lg:ml-auto shrink-0">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <ClockIcon className="size-3.5" />
+                Sisa waktu
+                <span className="font-mono font-bold text-foreground">
+                  {remainingSeconds !== null ? formatTimer(remainingSeconds) : "--:--"}
+                </span>
+              </span>
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <FileCheckIcon className="size-3.5" />
+                {formatSavedAnswerCount(activeSheet?.savedAnswerCount)}
+              </span>
+            </div>
+          </div>
         </div>
+      )}
 
-        {/* PANEL 2: Soal & Opsi Jawaban (Desktop 5 Cols / Mobile Full) */}
-        <div className="col-span-1 lg:col-span-5 space-y-4">
+      {/* Main Layout Container (Responsif & Proporsional Sesuai Keberadaan Wacana) */}
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* PANEL 1: Wacana / Stimulus (Hanya muncul jika soal memiliki wacana/media stimulus) */}
+        {hasStimulus && (
+          <div className="hidden lg:block lg:col-span-4 space-y-3">
+            <Card className="border shadow-xs max-h-[calc(100vh-140px)] flex flex-col">
+              <CardHeader className="p-3.5 pb-2 border-b bg-muted/20 shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-heading text-xs font-semibold text-primary">
+                    <BookOpenIcon className="size-4" />
+                    Wacana / Stimulus
+                  </div>
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                    Bacaan Pendukung
+                  </Badge>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-4 overflow-y-auto space-y-3 text-xs leading-relaxed">
+                {currentQuestion?.stimulusMediaUrl && (
+                  <div className="rounded border overflow-hidden bg-background flex items-center justify-center p-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={currentQuestion.stimulusMediaUrl}
+                      alt="Media wacana stimulus"
+                      referrerPolicy="no-referrer"
+                      className="object-contain max-h-56 w-full rounded"
+                    />
+                  </div>
+                )}
+                {currentQuestion?.stimulusText && (
+                  <p className="whitespace-pre-line text-foreground/90 font-sans leading-relaxed text-xs sm:text-[13px]">
+                    {currentQuestion.stimulusText}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* PANEL 2: Soal & Opsi Jawaban (Adaptif: 5 cols jika ada wacana, 9 cols jika mandiri) */}
+        <div className={`col-span-1 ${hasStimulus ? "lg:col-span-5" : "lg:col-span-9"} space-y-4`}>
           {currentQuestion && (
             <Card className="border shadow-xs">
               <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
@@ -677,6 +822,40 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
               </CardHeader>
 
               <CardContent className="pt-4 space-y-5 text-sm sm:text-base">
+                {/* Petunjuk Ringkas untuk Soal Mandiri */}
+                {!hasStimulus && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-dashed text-xs text-muted-foreground">
+                    <BookOpenIcon className="size-3.5 text-primary shrink-0" />
+                    <span>Soal nomor ini bersifat langsung tanpa teks wacana bacaan terpisah.</span>
+                  </div>
+                )}
+
+                {/* Stimulus Gambar & Teks untuk Layar Mobile/Tablet (lg:hidden) */}
+                {hasStimulus && (
+                  <div className="lg:hidden rounded-lg border bg-muted/20 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5 font-heading text-xs font-semibold text-primary">
+                      <BookOpenIcon className="size-3.5" />
+                      Wacana / Stimulus Soal
+                    </div>
+                    {currentQuestion?.stimulusMediaUrl && (
+                      <div className="rounded border overflow-hidden bg-background flex items-center justify-center p-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={currentQuestion.stimulusMediaUrl}
+                          alt="Media wacana stimulus"
+                          referrerPolicy="no-referrer"
+                          className="object-contain max-h-64 w-full rounded"
+                        />
+                      </div>
+                    )}
+                    {currentQuestion?.stimulusText && (
+                      <p className="whitespace-pre-line text-foreground/90 text-xs sm:text-[13px] leading-relaxed">
+                        {currentQuestion.stimulusText}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Teks Pertanyaan */}
                 <div className="leading-relaxed whitespace-pre-line font-medium text-foreground text-sm sm:text-[15px]">
                   {currentQuestion.questionText}
@@ -697,10 +876,17 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                         <div
                           key={opt.id}
                           onClick={() => handleSelectOption(opt.id)}
-                          className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                          aria-disabled={isLocked}
+                          className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
+                            isLocked
+                              ? "cursor-not-allowed opacity-60"
+                              : "cursor-pointer"
+                          } ${
                             isSelected
                               ? "border-primary bg-primary/10 shadow-xs ring-1 ring-primary/30"
-                              : "bg-card hover:bg-muted/40 hover:border-primary/40"
+                              : isLocked
+                                ? "bg-card"
+                                : "bg-card hover:bg-muted/40 hover:border-primary/40"
                           }`}
                         >
                           <div
@@ -737,15 +923,23 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                         <div
                           key={opt.id}
                           onClick={() => handleToggleComplexOption(opt.id)}
-                          className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                          aria-disabled={isLocked}
+                          className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
+                            isLocked
+                              ? "cursor-not-allowed opacity-60"
+                              : "cursor-pointer"
+                          } ${
                             isSelected
                               ? "border-primary bg-primary/10 shadow-xs ring-1 ring-primary/30"
-                              : "bg-card hover:bg-muted/40 hover:border-primary/40"
+                              : isLocked
+                                ? "bg-card"
+                                : "bg-card hover:bg-muted/40 hover:border-primary/40"
                           }`}
                         >
                           <div className="pt-0.5 shrink-0">
                             <Checkbox
                               checked={isSelected}
+                              disabled={isLocked}
                               onCheckedChange={() => handleToggleComplexOption(opt.id)}
                               className="size-4"
                             />
@@ -760,36 +954,38 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                   </div>
                 )}
 
-                {/* 3. OPSI BENAR / SALAH */}
+                {/* 3. OPSI BENAR / SALAH (Warna Merah Tegas & Ikon Silang untuk Salah) */}
                 {currentQuestion.type === "true_false" && (
                   <div className="space-y-3 pt-1">
-                    <div className="text-[11px] text-muted-foreground font-medium">
+                    <div className="text-xs text-muted-foreground font-medium">
                       Tentukan apakah pernyataan di atas Benar atau Salah:
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
+                        disabled={isLocked}
                         onClick={() => handleSelectTrueFalse("true")}
-                        className={`p-3.5 rounded-lg border text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        className={`p-3.5 rounded-lg border-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
                           currentAnswer?.selectedOptionId === "true"
-                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 ring-2 ring-emerald-500/40 shadow-xs"
-                            : "bg-card hover:bg-muted/50 text-muted-foreground"
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 ring-2 ring-emerald-500/30 shadow-xs font-bold"
+                            : "border-border bg-card hover:bg-muted/50 text-muted-foreground"
                         }`}
                       >
-                        <CheckCircle2Icon className="size-4" />
-                        Pernyataan Benar
+                        <CheckCircle2Icon className="size-4 text-emerald-600" />
+                        <span>Pernyataan Benar</span>
                       </button>
                       <button
                         type="button"
+                        disabled={isLocked}
                         onClick={() => handleSelectTrueFalse("false")}
-                        className={`p-3.5 rounded-lg border text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        className={`p-3.5 rounded-lg border-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
                           currentAnswer?.selectedOptionId === "false"
-                            ? "border-rose-600 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 ring-2 ring-rose-500/40 shadow-xs"
-                            : "bg-card hover:bg-muted/50 text-muted-foreground"
+                            ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300 ring-2 ring-red-500/30 shadow-xs font-bold"
+                            : "border-border bg-card hover:bg-muted/50 text-muted-foreground"
                         }`}
                       >
-                        <HelpCircleIcon className="size-4" />
-                        Pernyataan Salah
+                        <XCircleIcon className="size-4 text-red-600" />
+                        <span>Pernyataan Salah</span>
                       </button>
                     </div>
                   </div>
@@ -803,9 +999,14 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                     </Label>
                     <Textarea
                       id="essay-input"
-                      placeholder="Ketik jawaban essay Anda di sini..."
+                      placeholder={
+                        isLocked
+                          ? "Lembar dikunci. Hubungi pengajar untuk melanjutkan."
+                          : "Ketik jawaban essay Anda di sini..."
+                      }
                       value={currentAnswer?.essayAnswer ?? ""}
                       onChange={(e) => handleEssayChange(e.target.value)}
+                      disabled={isLocked}
                       rows={6}
                       className="text-xs sm:text-sm leading-relaxed"
                     />
@@ -819,7 +1020,7 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                   size="sm"
                   disabled={currentIndex === 0}
                   onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                  className="gap-1 text-xs"
+                  className="gap-1.5 text-xs px-4 h-9 font-semibold"
                 >
                   <ChevronLeftIcon className="size-4" />
                   Sebelumnya
@@ -828,11 +1029,12 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                 <Button
                   variant={currentAnswer?.isDoubtful ? "default" : "outline"}
                   size="sm"
+                  disabled={isLocked}
                   onClick={handleToggleDoubtful}
-                  className={`gap-1.5 text-xs ${
+                  className={`gap-1.5 text-xs px-4 h-9 font-semibold transition-all ${
                     currentAnswer?.isDoubtful
-                      ? "bg-amber-600 hover:bg-amber-700 text-white"
-                      : "border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                      ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                      : "border-2 border-amber-500/60 text-amber-700 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/40"
                   }`}
                 >
                   <HelpCircleIcon className="size-4" />
@@ -840,11 +1042,15 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                 </Button>
 
                 <Button
-                  variant="outline"
+                  variant={currentIndex === totalQuestions - 1 ? "outline" : "default"}
                   size="sm"
                   disabled={currentIndex === totalQuestions - 1}
                   onClick={() => setCurrentIndex((prev) => Math.min(totalQuestions - 1, prev + 1))}
-                  className="gap-1 text-xs"
+                  className={`gap-1.5 text-xs px-4 h-9 font-semibold transition-all ${
+                    currentIndex === totalQuestions - 1
+                      ? "opacity-50"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
+                  }`}
                 >
                   Berikutnya
                   <ChevronRightIcon className="size-4" />
@@ -861,7 +1067,7 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
               <CardTitle className="text-xs font-heading flex items-center justify-between">
                 <span>Peta Nomor Soal</span>
                 <span className="text-xs font-mono text-muted-foreground font-normal">
-                  {answeredCount}/{totalQuestions} Terjawab
+                  {totalAnswered}/{totalQuestions} Terjawab
                 </span>
               </CardTitle>
             </CardHeader>
@@ -872,12 +1078,13 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                 {questions.map((q, idx) => {
                   const ans = answersMap[q.id]
                   const isCurrent = idx === currentIndex
-                  const isAnswered =
+                  const isAnswered = Boolean(
                     ans &&
-                    (Boolean(ans.selectedOptionId) ||
-                      Boolean(ans.selectedOptionIds && ans.selectedOptionIds.length > 0) ||
-                      Boolean(ans.essayAnswer && ans.essayAnswer.trim().length > 0))
-                  const isDoubtful = ans?.isDoubtful
+                      (Boolean(ans.selectedOptionId) ||
+                        Boolean(ans.selectedOptionIds && ans.selectedOptionIds.length > 0) ||
+                        Boolean(ans.essayAnswer && ans.essayAnswer.trim().length > 0))
+                  )
+                  const isDoubtful = Boolean(isAnswered && ans?.isDoubtful)
 
                   let stateClass = "bg-muted text-muted-foreground border-transparent"
                   if (isDoubtful) {
@@ -891,7 +1098,9 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                       key={q.id}
                       onClick={() => setCurrentIndex(idx)}
                       className={`h-8 rounded border text-xs flex items-center justify-center font-mono transition-all ${stateClass} ${
-                        isCurrent ? "ring-2 ring-primary ring-offset-2" : "hover:opacity-90"
+                        isCurrent
+                          ? "ring-2 ring-primary ring-offset-2 scale-105 font-black shadow-md z-10"
+                          : "hover:opacity-90"
                       }`}
                       title={`Soal Nomor ${idx + 1}`}
                     >
@@ -901,11 +1110,11 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                 })}
               </div>
 
-              {/* Keterangan Warna Grid */}
-              <div className="pt-2 border-t space-y-1.5 text-[11px] text-muted-foreground">
+              {/* Keterangan Warna Grid (Konsisten & Tepat Matematika) */}
+              <div className="pt-2.5 border-t space-y-1.5 text-[11px] text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <span className="size-2.5 rounded bg-emerald-600 shrink-0" />
-                  <span>Sudah Dijawab ({answeredCount})</span>
+                  <span>Dijawab Pasti ({answeredSureCount})</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="size-2.5 rounded bg-amber-500 shrink-0" />
@@ -923,7 +1132,9 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                 variant="default"
                 size="sm"
                 onClick={() => setIsSubmitDialogOpen(true)}
-                className="w-full text-xs gap-1.5"
+                disabled={isLocked}
+                title={isLocked ? "Lembar sedang dikunci" : undefined}
+                className="w-full text-xs gap-1.5 font-bold bg-primary shadow-xs"
               >
                 <SendIcon className="size-3.5" />
                 Selesaikan Ujian
@@ -949,6 +1160,7 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                 <img
                   src={currentQuestion.stimulusMediaUrl}
                   alt="Media wacana stimulus"
+                  referrerPolicy="no-referrer"
                   className="object-contain max-h-56 w-full rounded"
                 />
               </div>
@@ -978,7 +1190,7 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
             <DialogTitle className="text-sm font-heading flex items-center justify-between">
               <span>Peta Nomor Soal</span>
               <span className="text-xs font-mono text-muted-foreground font-normal">
-                {answeredCount}/{totalQuestions} Terjawab
+                {totalAnswered}/{totalQuestions} Terjawab
               </span>
             </DialogTitle>
           </DialogHeader>
@@ -987,12 +1199,13 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
               {questions.map((q, idx) => {
                 const ans = answersMap[q.id]
                 const isCurrent = idx === currentIndex
-                const isAnswered =
+                const isAnswered = Boolean(
                   ans &&
-                  (Boolean(ans.selectedOptionId) ||
-                    Boolean(ans.selectedOptionIds && ans.selectedOptionIds.length > 0) ||
-                    Boolean(ans.essayAnswer && ans.essayAnswer.trim().length > 0))
-                const isDoubtful = ans?.isDoubtful
+                    (Boolean(ans.selectedOptionId) ||
+                      Boolean(ans.selectedOptionIds && ans.selectedOptionIds.length > 0) ||
+                      Boolean(ans.essayAnswer && ans.essayAnswer.trim().length > 0))
+                )
+                const isDoubtful = Boolean(isAnswered && ans?.isDoubtful)
 
                 let stateClass = "bg-muted text-muted-foreground border-transparent"
                 if (isDoubtful) {
@@ -1009,7 +1222,9 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
                       setMobileNavOpen(false)
                     }}
                     className={`h-9 rounded border text-xs flex items-center justify-center font-mono transition-all ${stateClass} ${
-                      isCurrent ? "ring-2 ring-primary ring-offset-2" : "hover:opacity-90"
+                      isCurrent
+                        ? "ring-2 ring-primary ring-offset-2 scale-105 font-black shadow-md z-10"
+                        : "hover:opacity-90"
                     }`}
                   >
                     {idx + 1}
@@ -1018,10 +1233,10 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
               })}
             </div>
 
-            <div className="pt-2 border-t space-y-1.5 text-[11px] text-muted-foreground">
+            <div className="pt-2.5 border-t space-y-1.5 text-[11px] text-muted-foreground">
               <div className="flex items-center gap-2">
                 <span className="size-2.5 rounded bg-emerald-600 shrink-0" />
-                <span>Sudah Dijawab ({answeredCount})</span>
+                <span>Dijawab Pasti ({answeredSureCount})</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="size-2.5 rounded bg-amber-500 shrink-0" />
@@ -1042,44 +1257,46 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
       </Dialog>
 
       {/* DIALOG PERINGATAN PELANGGARAN TAB (ANTI-CURANG) */}
-      <Dialog open={isViolationModalOpen} onOpenChange={setIsViolationModalOpen}>
-        <DialogContent className="sm:max-w-md border-amber-500/40 bg-card">
-          <DialogHeader>
-            <div className="size-12 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center mx-auto mb-2">
-              <ShieldAlertIcon className="size-6" />
-            </div>
-            <DialogTitle className="font-heading text-center text-amber-700 dark:text-amber-400">
-              Peringatan Integritas Ujian
-            </DialogTitle>
-            <DialogDescription className="text-xs text-center">
-              Terdeteksi bahwa Anda meninggalkan jendela atau tab ujian aktif.
-            </DialogDescription>
-          </DialogHeader>
+      {!isLocked && (
+        <Dialog open={isViolationModalOpen} onOpenChange={setIsViolationModalOpen}>
+          <DialogContent className="sm:max-w-md border-amber-500/40 bg-card">
+            <DialogHeader>
+              <div className="size-12 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center mx-auto mb-2">
+                <ShieldAlertIcon className="size-6" />
+              </div>
+              <DialogTitle className="font-heading text-center text-amber-700 dark:text-amber-400">
+                Peringatan Integritas Ujian
+              </DialogTitle>
+              <DialogDescription className="text-xs text-center">
+                Terdeteksi bahwa Anda meninggalkan jendela atau tab ujian aktif.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 text-xs space-y-2 text-center">
-            <p className="text-foreground leading-relaxed">
-              Seluruh aktivitas keluar dari layar ujian telah dicatat secara otomatis oleh sistem pengawas.
-            </p>
-            <div className="font-semibold text-amber-700 dark:text-amber-400 font-mono">
-              Total Pelanggaran Tercatat: {violationsCount} kali
+            <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 text-xs space-y-2 text-center">
+              <p className="text-foreground leading-relaxed">
+                Seluruh aktivitas keluar dari layar ujian telah dicatat secara otomatis oleh sistem pengawas.
+              </p>
+              <div className="font-semibold text-amber-700 dark:text-amber-400 font-mono">
+                Total Pelanggaran Tercatat: {violationsCount} kali
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Harap tetap fokus pada halaman ujian ini dan tidak membuka tab lain demi menjaga kejujuran evaluasi.
+              </p>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              Harap tetap fokus pada halaman ujian ini dan tidak membuka tab lain demi menjaga kejujuran evaluasi.
-            </p>
-          </div>
 
-          <DialogFooter className="pt-2 border-t">
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => setIsViolationModalOpen(false)}
-              className="w-full text-xs bg-amber-600 hover:bg-amber-700 text-white"
-            >
-              Saya Mengerti & Kembali Mengerjakan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter className="pt-2 border-t">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setIsViolationModalOpen(false)}
+                className="w-full text-xs bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                Saya Mengerti & Kembali Mengerjakan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* DIALOG KONFIRMASI SUBMIT UJIAN */}
       <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
@@ -1094,8 +1311,8 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
           <div className="space-y-3 py-2 text-xs">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20">
-                <div className="text-lg font-bold font-mono text-emerald-600">{answeredCount}</div>
-                <div className="text-[10px] text-muted-foreground">Terjawab</div>
+                <div className="text-lg font-bold font-mono text-emerald-600">{answeredSureCount}</div>
+                <div className="text-[10px] text-muted-foreground">Dijawab Pasti</div>
               </div>
               <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-500/20">
                 <div className="text-lg font-bold font-mono text-amber-600">{doubtfulCount}</div>
@@ -1103,7 +1320,7 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
               </div>
               <div className="p-2.5 rounded-lg bg-muted/60 border">
                 <div className="text-lg font-bold font-mono text-foreground">{unansweredCount}</div>
-                <div className="text-[10px] text-muted-foreground">Kosong</div>
+                <div className="text-[10px] text-muted-foreground">Belum Dijawab</div>
               </div>
             </div>
 
@@ -1120,8 +1337,19 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
               <div className="p-2.5 rounded-lg border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 flex items-start gap-2 text-amber-700 dark:text-amber-400">
                 <AlertTriangleIcon className="size-4 shrink-0 mt-0.5" />
                 <p className="text-[11px] leading-relaxed">
-                  Perhatian: Masih terdapat <strong>{unansweredCount} soal belum dijawab</strong> dan{" "}
-                  <strong>{doubtfulCount} soal ragu-ragu</strong>. Anda yakin ingin mengumpulkan sekarang?
+                  Perhatian: Masih terdapat{" "}
+                  {unansweredCount > 0 && (
+                    <>
+                      <strong>{unansweredCount} soal belum dijawab</strong>
+                      {doubtfulCount > 0 ? " dan " : "."}
+                    </>
+                  )}
+                  {doubtfulCount > 0 && (
+                    <>
+                      <strong>{doubtfulCount} soal ragu-ragu</strong>.
+                    </>
+                  )}{" "}
+                  Anda yakin ingin mengumpulkan sekarang?
                 </p>
               </div>
             )}
@@ -1142,7 +1370,7 @@ export function ExamWorksheet({ participantId, onExit }: ExamWorksheetProps) {
               type="button"
               size="sm"
               onClick={() => handleFinalSubmit(false)}
-              disabled={isSubmittingFinal}
+              disabled={isSubmittingFinal || isLocked}
               className="text-xs gap-1.5 bg-primary"
             >
               {isSubmittingFinal ? (

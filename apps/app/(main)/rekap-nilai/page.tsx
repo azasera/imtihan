@@ -8,6 +8,7 @@ import {
   AlertCircleIcon,
   ArrowDownRightIcon,
   AwardIcon,
+  BarChart3Icon,
   BookOpenIcon,
   CheckCircle2Icon,
   ClockIcon,
@@ -24,6 +25,7 @@ import { toast } from "sonner"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { authClient } from "@/lib/auth-client"
+import { passingStatusLabel, sessionKindLabel } from "@/lib/item-analysis"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -69,6 +71,9 @@ export default function RekapNilaiPage() {
     return sessions?.find((s) => s._id === selectedSessionId)
   }, [sessions, selectedSessionId])
 
+  // Batas tuntas milik sesi; sesi tanpa batas tuntas tidak menampilkan penanda apa pun.
+  const passingScore = selectedSession?.passingScore ?? null
+
   // Perhitungan statistik nilai kelas
   const stats = React.useMemo(() => {
     if (!participants || participants.length === 0) {
@@ -79,12 +84,11 @@ export default function RekapNilaiPage() {
         highestScore: 0,
         lowestScore: 0,
         passingCount: 0,
-        passingPercentage: 0,
+        passingPercentage: null,
       }
     }
 
     const submitted = participants.filter((p) => p.status === "submitted" && p.totalScore !== undefined)
-    const kkm = 75 // Standar KKM
 
     if (submitted.length === 0) {
       return {
@@ -94,7 +98,7 @@ export default function RekapNilaiPage() {
         highestScore: 0,
         lowestScore: 0,
         passingCount: 0,
-        passingPercentage: 0,
+        passingPercentage: null,
       }
     }
 
@@ -103,8 +107,12 @@ export default function RekapNilaiPage() {
     const avg = total / scores.length
     const max = Math.max(...scores)
     const min = Math.min(...scores)
-    const passing = submitted.filter((p) => (p.totalScore ?? 0) >= kkm).length
-    const passingPct = (passing / submitted.length) * 100
+    const passing =
+      passingScore === null
+        ? 0
+        : submitted.filter((p) => (p.totalScore ?? 0) >= passingScore).length
+    const passingPct =
+      passingScore === null ? null : Number(((passing / submitted.length) * 100).toFixed(1))
 
     return {
       totalParticipants: participants.length,
@@ -113,9 +121,9 @@ export default function RekapNilaiPage() {
       highestScore: max,
       lowestScore: min,
       passingCount: passing,
-      passingPercentage: Number(passingPct.toFixed(1)),
+      passingPercentage: passingPct,
     }
-  }, [participants])
+  }, [participants, passingScore])
 
   // Filter daftar santri berdasarkan pencarian
   const filteredParticipants = React.useMemo(() => {
@@ -135,18 +143,19 @@ export default function RekapNilaiPage() {
       return
     }
 
-    const kkm = 75
     const headers = [
       "No",
       "Nomor Induk / NISN",
       "Nama Santri",
       "Kelas",
       "Status Ujian",
+      "Jenis Sesi",
       "Pelanggaran Tab",
       "Nilai Pilihan Ganda",
       "Nilai Essay",
+      "Nilai Sebelum Pembatasan",
       "Total Nilai Akhir",
-      "Standar KKM",
+      "Batas Tuntas",
       "Ketuntasan",
     ]
 
@@ -156,8 +165,13 @@ export default function RekapNilaiPage() {
       const pg = p.multipleChoiceScore !== undefined ? p.multipleChoiceScore : ""
       const essay = p.essayScore !== undefined ? p.essayScore : ""
       const violations = p.tabViolations ?? 0
+      const rawTotal = p.rawTotalScore ?? (typeof total === "number" ? total : "")
       const ketuntasan =
-        isSubmitted && typeof total === "number" ? (total >= kkm ? "Tuntas" : "Belum Tuntas") : "-"
+        isSubmitted && typeof total === "number" && passingScore !== null
+          ? total >= passingScore
+            ? "Tuntas"
+            : "Belum Tuntas"
+          : "-"
 
       return [
         idx + 1,
@@ -165,11 +179,13 @@ export default function RekapNilaiPage() {
         `"${p.studentName.replace(/"/g, '""')}"`,
         `"${p.className || selectedSession.gradeLevel}"`,
         isSubmitted ? "Selesai" : "Sedang Mengerjakan",
+        sessionKindLabel(selectedSession.kind),
         violations,
         pg,
         essay,
+        rawTotal,
         total,
-        kkm,
+        passingScore ?? "",
         ketuntasan,
       ].join(",")
     })
@@ -222,7 +238,21 @@ export default function RekapNilaiPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedSession && participants && participants.length > 0 && (
+            <Link
+              href={`/rekap-nilai/analisis/${selectedSession._id}`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: "text-xs gap-1.5",
+              })}
+            >
+              <BarChart3Icon className="size-3.5" />
+              Analisis Butir
+            </Link>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -264,6 +294,10 @@ export default function RekapNilaiPage() {
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center print:hidden">
         <div className="sm:col-span-6 lg:col-span-5">
           <Select
+            items={sessions?.map((session) => ({
+              value: session._id,
+              label: `${session.title} (${session.subjectCode} - ${session.gradeLevel})`,
+            }))}
             value={selectedSessionId}
             onValueChange={(val) => setPickedSessionId(val ?? "")}
           >
@@ -345,10 +379,12 @@ export default function RekapNilaiPage() {
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl font-bold font-mono text-primary tracking-tight">
-              {stats.submittedCount > 0 ? `${stats.passingPercentage}%` : "-"}
+              {stats.passingPercentage === null ? "-" : `${stats.passingPercentage}%`}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">
-              {stats.passingCount} santri tuntas KKM (75)
+              {passingScore === null
+                ? "Batas tuntas sesi belum diisi"
+                : `${stats.passingCount} santri tuntas KKM (${passingScore})`}
             </p>
           </CardContent>
         </Card>
@@ -384,10 +420,12 @@ export default function RekapNilaiPage() {
                   <TableHead>Nama Santri</TableHead>
                   <TableHead>NISN</TableHead>
                   <TableHead>Status Ujian</TableHead>
+                  <TableHead>Jenis Sesi</TableHead>
                   <TableHead className="text-center">Pelanggaran Tab</TableHead>
                   <TableHead className="text-center">Nilai PG</TableHead>
                   <TableHead className="text-center">Nilai Essay</TableHead>
                   <TableHead className="text-center">Total Nilai</TableHead>
+                  <TableHead className="text-center">Ketuntasan</TableHead>
                   <TableHead className="text-center">Status Koreksi</TableHead>
                   <TableHead className="text-right print:hidden">Aksi</TableHead>
                 </TableRow>
@@ -397,6 +435,10 @@ export default function RekapNilaiPage() {
                   const isSubmitted = p.status === "submitted"
                   const isGraded = p.gradingStatus === "graded"
                   const violations = p.tabViolations ?? 0
+                  const passingLabel = passingStatusLabel(
+                    isSubmitted ? p.totalScore : undefined,
+                    passingScore
+                  )
 
                   return (
                     <TableRow key={p._id}>
@@ -415,6 +457,11 @@ export default function RekapNilaiPage() {
                             Mengerjakan
                           </Badge>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px]">
+                          {sessionKindLabel(selectedSession?.kind)}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-center">
                         {violations === 0 ? (
@@ -439,6 +486,33 @@ export default function RekapNilaiPage() {
                       </TableCell>
                       <TableCell className="text-center font-mono font-bold text-primary">
                         {p.totalScore !== undefined ? p.totalScore : "-"}
+                        {isSubmitted &&
+                          p.rawTotalScore !== undefined &&
+                          p.totalScore !== undefined &&
+                          p.rawTotalScore > p.totalScore && (
+                            <div className="text-[10px] font-normal text-muted-foreground">
+                              sebelum batas: {p.rawTotalScore}
+                            </div>
+                          )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {passingLabel === null ? (
+                          <span className="text-muted-foreground text-[10px]">-</span>
+                        ) : passingLabel === "Tuntas" ? (
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-[10px]"
+                          >
+                            Tuntas
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500/40 text-amber-700 dark:text-amber-300 text-[10px]"
+                          >
+                            Belum tuntas
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
                         {p.gradingStatus === "pending_essay" ? (

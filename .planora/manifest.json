@@ -6,31 +6,31 @@
     "name": "E-Imtihan At-Tauhid",
     "locale": "id-ID"
   },
-  "generatedDate": "2026-11-03",
+  "generatedDate": "2026-11-09",
   "guideType": "ui",
   "status": "draft",
   "sourceVersions": {
-    "prd": "0.4",
-    "uiGuide": "0.4",
-    "executionPlan": "0.4"
+    "prd": "0.9",
+    "uiGuide": "0.9",
+    "executionPlan": "0.18"
   },
   "artifacts": {
     "prd": {
       "directory": "PRD",
       "entry": "PRD/PRD.md",
-      "sourceVersion": "0.4",
+      "sourceVersion": "0.9",
       "status": "draft"
     },
     "uiGuide": {
       "directory": "UI",
       "entry": "UI/README.md",
-      "sourceVersion": "0.4",
+      "sourceVersion": "0.9",
       "status": "draft"
     },
     "executionPlan": {
       "directory": "EXECUTION",
       "entry": "EXECUTION/README.md",
-      "sourceVersion": "0.4",
+      "sourceVersion": "0.18",
       "status": "draft"
     }
   },
@@ -45,11 +45,13 @@
     "EXECUTION/phases/phase-04-penilaian-rekap.md",
     "EXECUTION/phases/phase-05-integrasi-santri.md",
     "EXECUTION/phases/phase-06-cbt-enhancements.md",
+    "EXECUTION/phases/phase-07-e-rapor.md",
     "EXECUTION/release-readiness.md",
     "PRD/PRD.md",
     "PRD/README.md",
     "PRD/asumsi-dan-pertanyaan.md",
     "PRD/fitur/bank-soal.md",
+    "PRD/fitur/e-rapor.md",
     "PRD/fitur/integrasi-santri.md",
     "PRD/fitur/penilaian-dan-rekap.md",
     "PRD/fitur/ruang-ujian-santri.md",
@@ -62,6 +64,7 @@
     "UI/README.md",
     "UI/accessibility.md",
     "UI/components/README.md",
+    "UI/components/penulisan-soal-dan-mapel.md",
     "UI/components/ruang-ujian-dan-monitoring.md",
     "UI/content-guidelines.md",
     "UI/design-direction.md",
@@ -69,7 +72,13 @@
     "UI/foundations/warna-dan-tipografi.md",
     "UI/patterns/README.md",
     "UI/patterns/alur-ujian-dan-pemantauan.md",
+    "UI/patterns/penulisan-soal-massal.md",
+    "UI/screens/analisis-butir-soal.md",
+    "UI/screens/e-rapor-dan-cetak.md",
+    "UI/screens/kelola-mata-pelajaran.md",
     "UI/screens/monitoring-sesi-ujian.md",
+    "UI/screens/pelaksanaan-dan-penegakan-sesi.md",
+    "UI/screens/penulisan-soal-cepat.md",
     "UI/screens/screen-inventory.md",
     "manifest.json"
   ],
@@ -108,6 +117,125 @@
       "fromVersion": "0.3",
       "toVersion": "0.4",
       "reason": "Menambah CHG-001 sebagai item eksekusi layar monitoring dan melengkapi referensi kebutuhan pada dokumen fase"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "prd",
+      "fromVersion": "0.4",
+      "toVersion": "0.5",
+      "reason": "Menambah kebutuhan penulisan soal cepat: impor massal dari tempelan teks, sunting dan gandakan butir, pengelolaan mata pelajaran dan jenjang resmi, beserta kriteria penerimaan dan pengecualian scope"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "ui",
+      "fromVersion": "0.4",
+      "toVersion": "0.5",
+      "reason": "Menambah spesifikasi layar penulisan cepat butir soal dan kelola mata pelajaran beserta komponen dan pola interaksinya"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.4",
+      "toVersion": "0.5",
+      "reason": "Menambah CHG-002, CHG-003, CHG-004 pada fase bank soal dan mencatat kesenjangan implementasi kebutuhan lama pada daftar periksa rilis"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "prd",
+      "fromVersion": "0.5",
+      "toVersion": "0.6",
+      "reason": "Adopsi benchmark CBT: tempelan baris lembar kerja + template, pembahasan dan penanda mutu butir, masa berlaku token, sesi lanjutan, mode penegakan, analisis mutu butir"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "ui",
+      "fromVersion": "0.5",
+      "toVersion": "0.6",
+      "reason": "Spesifikasi layar analisis mutu butir, penayangan token layar penuh, panel terkunci, dan format tempelan lembar kerja"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.5",
+      "toVersion": "0.6",
+      "reason": "Enam item TODO baru CHG-005 sampai CHG-010 dengan dependensinya, fase terdampak, dan sisa pekerjaan rilis"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.6",
+      "toVersion": "0.7",
+      "reason": "Menutup CHG-002 dengan bukti probe runtime dan menyesuaikan fase serta kesiapan rilis"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.7",
+      "toVersion": "0.8",
+      "reason": "Menutup CHG-003: penafsir tempelan teks, pratinjau per butir, dan mutasi tulis bertahap dengan bukti probe CLI serta handoff E2E Required"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.8",
+      "toVersion": "0.9",
+      "reason": "CHG-004 selesai: layar kelola mata pelajaran, penonaktifan mapel, dan jenjang resmi pada form paket terpasang serta terverifikasi"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.9",
+      "toVersion": "0.10",
+      "reason": "CHG-005 terpasang: metadata butir (pembahasan, tingkat berpikir, capaian), penanda impor, pratinjau, lembar koreksi, dan handoff E2E"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.10",
+      "toVersion": "0.11",
+      "reason": "CHG-006 selesai: tempelan baris lembar kerja dan unduhan template kolom terpasang serta terverifikasi tes, typecheck, build, dan pemeriksaan kebocoran"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.11",
+      "toVersion": "0.12",
+      "reason": "CHG-007 selesai: batas nilai tuntas per sesi dan sesi lanjutan remedial/susulan terpasang dan tervalidasi."
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.12",
+      "toVersion": "0.13",
+      "reason": "CHG-008 selesai: rotasi token 5/15/30 menit, hitung mundur monitoring dari server, layar penuh, dan penolakan token lama"
+    },
+    {
+      "date": "2026-11-04",
+      "changed": "execution",
+      "fromVersion": "0.13",
+      "toVersion": "0.14",
+      "reason": "CHG-009 selesai: mode penegakan integritas (catat saja / kunci setelah ambang), panel terkunci santri, dan pembukaan kunci dari monitoring terpasang dengan bukti probe CLI serta handoff E2E"
+    },
+    {
+      "date": "2026-11-05",
+      "changed": "execution",
+      "fromVersion": "0.14",
+      "toVersion": "0.15",
+      "reason": "CHG-010 selesai: analisis mutu butir, penanda tuntas, dan kelompok remedial/pengayaan"
+    },
+    {
+      "date": "2026-11-07",
+      "changed": "prd",
+      "fromVersion": "0.6",
+      "toVersion": "0.7",
+      "reason": "Penyelarasan alur kerja studio bank soal: memperjelas opsi impor massal untuk mendukung dokumen Word bernomor dan lembar kerja Excel/TSV (CHG-011)"
+    },
+    {
+      "date": "2026-11-09",
+      "changed": "all",
+      "fromVersion": "0.7",
+      "toVersion": "0.8",
+      "reason": "Perencanaan Modul E-Rapor Kurikulum Merdeka & Diniyah At-Tauhid terintegrasi CBT dengan KOP Rapor resmi SiPAKSa sesuai lembaga (SMPITA, SMAITA, MTA) (CHG-012)"
     }
   ],
   "openBlockers": [

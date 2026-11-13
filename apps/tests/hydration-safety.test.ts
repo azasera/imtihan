@@ -45,13 +45,39 @@ describe("Hydration Safety & Browser Extension Attribute Protection", () => {
     )
   })
 
+  it("confirms Textarea component has suppressHydrationWarning enabled", () => {
+    const textareaPath = path.join(APPS_ROOT, "components", "ui", "textarea.tsx")
+    assert.ok(fs.existsSync(textareaPath), "components/ui/textarea.tsx must exist")
+    const content = fs.readFileSync(textareaPath, "utf-8")
+
+    assert.ok(
+      content.includes("suppressHydrationWarning"),
+      "Textarea component must have suppressHydrationWarning"
+    )
+  })
+
+  it("confirms bank-soal/baru form and template/workflow buttons have suppressHydrationWarning enabled", () => {
+    const baruPath = path.join(APPS_ROOT, "app", "(main)", "bank-soal", "baru", "page.tsx")
+    assert.ok(fs.existsSync(baruPath), "bank-soal/baru/page.tsx must exist")
+    const content = fs.readFileSync(baruPath, "utf-8")
+
+    assert.ok(
+      content.includes("suppressHydrationWarning"),
+      "bank-soal/baru must have suppressHydrationWarning to prevent extension attribute mismatches"
+    )
+    assert.ok(
+      content.includes('data-1p-ignore="true"'),
+      "Card selector buttons must include data-1p-ignore hint"
+    )
+  })
+
   it("confirms student exam entry page form and inputs have autofill and hydration guards", () => {
     const pagePath = path.join(APPS_ROOT, "app", "ujian", "page.tsx")
     assert.ok(fs.existsSync(pagePath), "app/ujian/page.tsx must exist")
     const content = fs.readFileSync(pagePath, "utf-8")
 
     assert.ok(
-      content.includes("<form onSubmit={handleEnterExam} suppressHydrationWarning autoComplete=\"off\">"),
+      content.includes("suppressHydrationWarning autoComplete=\"off\""),
       "Exam entry form must have suppressHydrationWarning and autoComplete='off'"
     )
     assert.ok(

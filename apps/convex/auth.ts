@@ -15,7 +15,7 @@ const authEnv = env as typeof env & {
 }
 
 const emailAndPasswordEnabled =
-  authEnv.EMAIL_PASSWORD_AUTH_ENABLED === "true" ||
+  authEnv.EMAIL_PASSWORD_AUTH_ENABLED !== "false" ||
   env.E2E_EMAIL_PASSWORD_AUTH_ENABLED === "true"
 
 const googleCredentials =
@@ -41,6 +41,21 @@ export const authComponent = createClient<DataModel>(components.betterAuth)
 export const createAuth = (ctx: GenericCtx<DataModel>) =>
   betterAuth({
     baseURL: env.SITE_URL,
+    trustedOrigins: [
+      "https://e-imtihan.online",
+      "https://www.e-imtihan.online",
+      "https://icentresmart.my.id",
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:3002",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001",
+      "http://127.0.0.1:3002",
+      "http://localhost:*",
+      "http://127.0.0.1:*",
+      "http://192.168.*:*",
+      ...(env.SITE_URL ? [env.SITE_URL] : []),
+    ],
     basePath: "/api/auth",
     database: authComponent.adapter(ctx),
     secret: env.BETTER_AUTH_SECRET,

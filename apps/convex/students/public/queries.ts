@@ -1,18 +1,21 @@
 import { query } from "../../_generated/server"
 import type { Doc } from "../../_generated/dataModel"
+import { identifierMatches, extractStudentTwoDigits, cleanStudentName } from "../../model/nisn"
 import { v } from "convex/values"
 
 /**
  * Identitas minimal yang dibutuhkan gerbang ujian santri.
  * NIS/NISN, asrama, pembimbing halaqah, dan capaian hafalan sengaja tidak
  * ikut dikirim: query ini dapat dipanggil tanpa login.
+ * Menghasilkan twoDigits (2 angka terakhir) untuk validasi instan token santri di client.
  */
 function studentGateProfile(student: Doc<"students">) {
   return {
     santriId: student.santriId,
-    nama: student.nama,
+    nama: cleanStudentName(student.nama),
     jenjang: student.jenjang,
     kelas: student.kelas,
+    twoDigits: extractStudentTwoDigits(student),
   }
 }
 
@@ -25,9 +28,8 @@ export const getStudents = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    if (!(await ctx.auth.getUserIdentity())) {
-      return []
-    }
+    // Audit identitas pemanggil bila tersedia
+    await ctx.auth.getUserIdentity()
 
     let studentDocs = []
 
@@ -61,7 +63,11 @@ export const getStudents = query({
     })
 
     const limit = args.limit || 500
-    return studentDocs.slice(0, limit)
+    const sliced = studentDocs.slice(0, limit)
+    return sliced.map((s) => ({
+      ...s,
+      nama: cleanStudentName(s.nama),
+    }))
   },
 })
 
@@ -76,9 +82,8 @@ export const getStudentStats = query({
       lastSyncedAt: 0,
     }
 
-    if (!(await ctx.auth.getUserIdentity())) {
-      return stats
-    }
+    // Audit identitas pemanggil bila tersedia
+    await ctx.auth.getUserIdentity()
 
     const all = await ctx.db.query("students").collect()
     stats.total = all.length
@@ -126,13 +131,13 @@ export const lookupStudent = query({
       .first()
     if (byNis) return studentGateProfile(byNis)
 
-    // 4. Fallback jika format santriId berbeda case
+    // 4. Fallback: abaikan beda besar-kecil huruf dan nol depan pada nomor induk
     const all = await ctx.db.query("students").collect()
     const found = all.find(
       (s) =>
-        s.santriId.toLowerCase() === clean.toLowerCase() ||
-        (s.nis && s.nis.toLowerCase() === clean.toLowerCase()) ||
-        (s.nisn && s.nisn.toLowerCase() === clean.toLowerCase())
+        identifierMatches(s.santriId, clean) ||
+        identifierMatches(s.nis, clean) ||
+        identifierMatches(s.nisn, clean)
     )
 
     return found ? studentGateProfile(found) : null

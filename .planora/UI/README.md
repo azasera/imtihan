@@ -12,3 +12,7 @@ Panduan desain antarmuka pengguna (UI/UX) untuk platform evaluasi E-Imtihan At-T
 - [Pola Interaksi (Interaction Patterns)](patterns/README.md)
 - [Inventaris Screen (Screen Inventory)](screens/screen-inventory.md)
 - [Spesifikasi Layar Monitoring Sesi Ujian](screens/monitoring-sesi-ujian.md)
+- [Spesifikasi Layar Penulisan Cepat Butir Soal](screens/penulisan-soal-cepat.md)
+- [Spesifikasi Layar Kelola Mata Pelajaran](screens/kelola-mata-pelajaran.md)
+- [Spesifikasi Layar Analisis Mutu Butir Soal](screens/analisis-butir-soal.md)
+- [Spesifikasi Pelaksanaan Sesi: Token, Penegakan, dan Sesi Lanjutan](screens/pelaksanaan-dan-penegakan-sesi.md)

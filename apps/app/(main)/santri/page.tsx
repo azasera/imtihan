@@ -35,6 +35,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
+import { cleanStudentName } from "@/lib/rapor-utils"
 
 export default function SantriManagementPage() {
   const [selectedJenjang, setSelectedJenjang] = React.useState<"ALL" | "SMPITA" | "SMAITA" | "MTA">("ALL")
@@ -49,16 +51,38 @@ export default function SantriManagementPage() {
 
   const syncStudents = useAction(api.students.public.actions.syncStudentsFromSipaksa)
 
+  const handleJenjangClick = (jenjang: "ALL" | "SMPITA" | "SMAITA" | "MTA") => {
+    if (jenjang === "ALL") {
+      setSelectedJenjang("ALL")
+    } else if (selectedJenjang === jenjang) {
+      setSelectedJenjang("ALL")
+    } else {
+      setSelectedJenjang(jenjang)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent, jenjang: "ALL" | "SMPITA" | "SMAITA" | "MTA") => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault()
+      handleJenjangClick(jenjang)
+    }
+  }
+
   const handleSync = async () => {
     setIsSyncing(true)
     try {
       const res = await syncStudents({})
+      const prunedNote = res.totalPruned ? `, ${res.totalPruned} data lama dibersihkan` : ""
       toast.success(
-        `Sinkronisasi berhasil! ${res.totalFiltered} santri aktif (SMP: ${res.byJenjang.SMPITA}, SMA: ${res.byJenjang.SMAITA}, MTA: ${res.byJenjang.MTA}) siap digunakan.`
+        `Sinkronisasi berhasil! ${res.totalFiltered} santri aktif (SMP: ${res.byJenjang.SMPITA}, SMA: ${res.byJenjang.SMAITA}, MTA: ${res.byJenjang.MTA}) siap digunakan${prunedNote}.`
       )
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat menghubungi SiPAKSa"
-      toast.error(msg)
+      if (msg.includes("login") || msg.includes("Akses ditolak") || msg.includes("Server Error")) {
+        toast.error("Silakan masuk dengan akun pengajar terlebih dahulu untuk sinkronisasi santri.")
+      } else {
+        toast.error(msg)
+      }
     } finally {
       setIsSyncing(false)
     }
@@ -112,12 +136,33 @@ export default function SantriManagementPage() {
 
       {/* Statistik Ringkas */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border/60 shadow-xs">
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={selectedJenjang === "ALL"}
+          aria-label="Filter semua santri aktif"
+          onClick={() => handleJenjangClick("ALL")}
+          onKeyDown={(e) => handleKeyDown(e, "ALL")}
+          className={cn(
+            "relative cursor-pointer border transition-all duration-200 select-none",
+            "hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2",
+            selectedJenjang === "ALL"
+              ? "border-emerald-600 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-xs ring-2 ring-emerald-500/20"
+              : "border-border/60 hover:border-emerald-200/80 dark:hover:border-emerald-800/80 shadow-xs"
+          )}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Santri Aktif
             </CardTitle>
-            <UsersIcon className="h-4 w-4 text-emerald-600" />
+            <div className="flex items-center gap-1.5">
+              {selectedJenjang === "ALL" && (
+                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] px-1.5 py-0 h-5 font-medium">
+                  Aktif
+                </Badge>
+              )}
+              <UsersIcon className="h-4 w-4 text-emerald-600" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
@@ -129,14 +174,42 @@ export default function SantriManagementPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 shadow-xs">
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={selectedJenjang === "SMPITA"}
+          aria-label="Filter santri jenjang SMPITA"
+          onClick={() => handleJenjangClick("SMPITA")}
+          onKeyDown={(e) => handleKeyDown(e, "SMPITA")}
+          className={cn(
+            "relative cursor-pointer border transition-all duration-200 select-none",
+            "hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2",
+            selectedJenjang === "SMPITA"
+              ? "border-emerald-600 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-xs ring-2 ring-emerald-500/20"
+              : "border-border/60 hover:border-emerald-200/80 dark:hover:border-emerald-800/80 shadow-xs"
+          )}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               SMPITA
             </CardTitle>
-            <Badge variant="outline" className="border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300">
-              SMP
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              {selectedJenjang === "SMPITA" && (
+                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] px-1.5 py-0 h-5 font-medium">
+                  Aktif
+                </Badge>
+              )}
+              <Badge
+                variant={selectedJenjang === "SMPITA" ? "default" : "outline"}
+                className={
+                  selectedJenjang === "SMPITA"
+                    ? "bg-emerald-600 hover:bg-emerald-600 text-white border-transparent"
+                    : "border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                }
+              >
+                SMP
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
@@ -148,14 +221,42 @@ export default function SantriManagementPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 shadow-xs">
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={selectedJenjang === "SMAITA"}
+          aria-label="Filter santri jenjang SMAITA"
+          onClick={() => handleJenjangClick("SMAITA")}
+          onKeyDown={(e) => handleKeyDown(e, "SMAITA")}
+          className={cn(
+            "relative cursor-pointer border transition-all duration-200 select-none",
+            "hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+            selectedJenjang === "SMAITA"
+              ? "border-blue-600 bg-blue-50/40 dark:bg-blue-950/20 shadow-xs ring-2 ring-blue-500/20"
+              : "border-border/60 hover:border-blue-200/80 dark:hover:border-blue-800/80 shadow-xs"
+          )}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               SMAITA
             </CardTitle>
-            <Badge variant="outline" className="border-blue-200 text-blue-700 dark:border-blue-800 dark:text-blue-300">
-              SMA
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              {selectedJenjang === "SMAITA" && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 text-[10px] px-1.5 py-0 h-5 font-medium">
+                  Aktif
+                </Badge>
+              )}
+              <Badge
+                variant={selectedJenjang === "SMAITA" ? "default" : "outline"}
+                className={
+                  selectedJenjang === "SMAITA"
+                    ? "bg-blue-600 hover:bg-blue-600 text-white border-transparent"
+                    : "border-blue-200 text-blue-700 dark:border-blue-800 dark:text-blue-300"
+                }
+              >
+                SMA
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
@@ -167,14 +268,42 @@ export default function SantriManagementPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 shadow-xs">
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-pressed={selectedJenjang === "MTA"}
+          aria-label="Filter santri jenjang MTA"
+          onClick={() => handleJenjangClick("MTA")}
+          onKeyDown={(e) => handleKeyDown(e, "MTA")}
+          className={cn(
+            "relative cursor-pointer border transition-all duration-200 select-none",
+            "hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2",
+            selectedJenjang === "MTA"
+              ? "border-purple-600 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs ring-2 ring-purple-500/20"
+              : "border-border/60 hover:border-purple-200/80 dark:hover:border-purple-800/80 shadow-xs"
+          )}
+        >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               MTA (Tahfidz)
             </CardTitle>
-            <Badge variant="outline" className="border-purple-200 text-purple-700 dark:border-purple-800 dark:text-purple-300">
-              MTA
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              {selectedJenjang === "MTA" && (
+                <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] px-1.5 py-0 h-5 font-medium">
+                  Aktif
+                </Badge>
+              )}
+              <Badge
+                variant={selectedJenjang === "MTA" ? "default" : "outline"}
+                className={
+                  selectedJenjang === "MTA"
+                    ? "bg-purple-600 hover:bg-purple-600 text-white border-transparent"
+                    : "border-purple-200 text-purple-700 dark:border-purple-800 dark:text-purple-300"
+                }
+              >
+                MTA
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
@@ -247,10 +376,28 @@ export default function SantriManagementPage() {
                     <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <UsersIcon className="h-8 w-8 text-muted-foreground/40" />
-                        <p className="font-medium">Belum ada data santri yang dimuat</p>
-                        <p className="text-xs text-muted-foreground max-w-sm">
-                          Klik tombol &quot;Tarik Data dari SiPAKSa&quot; di atas untuk menyinkronkan 346 santri nyata jenjang SMP, SMA, dan MTA.
+                        <p className="font-medium">
+                          {searchQuery || selectedJenjang !== "ALL"
+                            ? "Tidak ada santri yang sesuai dengan kriteria filter"
+                            : "Belum ada data santri yang dimuat"}
                         </p>
+                        {searchQuery || selectedJenjang !== "ALL" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedJenjang("ALL")
+                              setSearchQuery("")
+                            }}
+                            className="mt-1 text-xs"
+                          >
+                            Reset Filter
+                          </Button>
+                        ) : (
+                          <p className="text-xs text-muted-foreground max-w-sm">
+                            Klik tombol &quot;Tarik Data dari SiPAKSa&quot; di atas untuk menyinkronkan 346 santri nyata jenjang SMP, SMA, dan MTA.
+                          </p>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -264,7 +411,7 @@ export default function SantriManagementPage() {
                         {s.santriId}
                       </TableCell>
                       <TableCell className="font-medium text-foreground">
-                        {s.nama}
+                        {cleanStudentName(s.nama)}
                       </TableCell>
                       <TableCell>
                         {s.jenjang === "SMPITA" && (
@@ -312,7 +459,10 @@ export default function SantriManagementPage() {
                 <CheckCircle2Icon className="h-3.5 w-3.5 text-emerald-600" />
                 Terakhir disinkronkan: {formatLastSync(stats.lastSyncedAt)}
               </span>
-              <span>Menampilkan {students?.length || 0} santri</span>
+              <span>
+                Menampilkan {students?.length || 0} santri
+                {selectedJenjang !== "ALL" ? ` (${selectedJenjang})` : ""}
+              </span>
             </div>
           )}
         </CardContent>

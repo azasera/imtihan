@@ -20,6 +20,7 @@ import { toast } from "sonner"
 
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { thinkingLevelLabel } from "@/convex/model/thinkingLevels"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -193,7 +194,7 @@ export default function KoreksiEssayPage() {
           const isSaving = savingQuestionId === q.id
 
           return (
-            <Card key={q.id} className="border shadow-xs">
+            <Card key={q.id} id={`butir-${q.orderNumber}`} className="border shadow-xs scroll-mt-24">
               <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="font-mono text-xs font-bold">
@@ -209,10 +210,57 @@ export default function KoreksiEssayPage() {
               </CardHeader>
 
               <CardContent className="pt-4 space-y-4 text-xs sm:text-sm">
+                {/* Wacana / Stimulus Soal jika ada */}
+                {(q.stimulusMediaUrl || q.stimulusText) && (
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs">
+                    <div className="font-semibold text-primary flex items-center gap-1.5 text-[11px]">
+                      <BookOpenIcon className="size-3.5" />
+                      Wacana / Stimulus Soal:
+                    </div>
+                    {q.stimulusMediaUrl && (
+                      <div className="rounded border overflow-hidden bg-background flex items-center justify-center p-1 max-w-md">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={q.stimulusMediaUrl}
+                          alt="Media stimulus soal"
+                          referrerPolicy="no-referrer"
+                          className="object-contain max-h-56 w-full rounded"
+                        />
+                      </div>
+                    )}
+                    {q.stimulusText && (
+                      <p className="whitespace-pre-line text-muted-foreground leading-relaxed text-[11px]">
+                        {q.stimulusText}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Teks Pertanyaan */}
                 <div className="leading-relaxed whitespace-pre-line font-medium text-foreground">
                   {q.questionText}
                 </div>
+
+                {/* Penanda pengajar: pembahasan, tingkat berpikir, dan rujukan capaian */}
+                {(q.explanation || q.thinkingLevel || q.achievementRef) && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-1 text-[11px]">
+                    {q.explanation && (
+                      <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
+                        <span className="font-semibold text-foreground">Pembahasan: </span>
+                        {q.explanation}
+                      </p>
+                    )}
+                    <p className="text-muted-foreground">
+                      Tingkat berpikir:{" "}
+                      <span className="font-medium text-foreground">{thinkingLevelLabel(q.thinkingLevel)}</span>
+                    </p>
+                    {q.achievementRef && (
+                      <p className="text-muted-foreground">
+                        Rujukan capaian: <span className="font-medium text-foreground">{q.achievementRef}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Koreksi Otomatis Pilihan Ganda */}
                 {!isEssay && q.options && (
@@ -238,8 +286,10 @@ export default function KoreksiEssayPage() {
                             className={`flex items-center justify-between p-2.5 rounded-lg text-xs ${stateStyle}`}
                           >
                             <div className="flex items-center gap-2">
-                              <span className="w-5 font-bold font-mono">{opt.label}.</span>
-                              <span>{opt.text}</span>
+                              {q.type !== "true_false" && (
+                                <span className="min-w-5 shrink-0 font-bold font-mono">{opt.label}.</span>
+                              )}
+                              <span>{opt.text || opt.label}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               {isStudentChoice && (

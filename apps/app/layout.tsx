@@ -3,6 +3,7 @@ import { Geist_Mono, Inter, JetBrains_Mono } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { getToken } from "@/lib/auth-server"
 import { siteConfig } from "@/lib/site-config"
@@ -44,6 +45,14 @@ export default async function RootLayout({
         jetbrainsMonoHeading.variable
       )}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "window.__name=window.__name||function(e,t){return Object.defineProperty(e,'name',{value:t,configurable:!0})};",
+          }}
+        />
+      </head>
       <body>
         <ThemeProvider>
           <TooltipProvider>
@@ -51,6 +60,7 @@ export default async function RootLayout({
               {children}
             </ConvexClientProvider>
           </TooltipProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

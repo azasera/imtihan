@@ -20,3 +20,13 @@
    - Badge jumlah pelanggaran tab hanya terpasang saat jumlahnya lebih dari nol; nol ditampilkan sebagai teks biasa agar tidak menarik perhatian palsu.
 6. **Pemilih Sesi (Session Selector)**:
    - Dropdown satu layar untuk memilih sesi ujian milik pengajar yang sedang login, dengan sesi aktif sebagai pilihan awal.
+7. **Kartu Token dan Penayang Layar Penuh**:
+   - Kartu token memakai angka monospace berukuran besar dengan tombol salin dan tombol tayang. Mode tayang menutup area kerja, hanya memuat judul sesi dan token, tanpa nama santri.
+   - Bila masa berlaku token diatur berganti berkala, kartu menampilkan hitung mundur "Berganti dalam 07:12" dengan detik berjalan; hitungan dimulai dari nilai server, bukan dari jam browser, agar tidak berbeda antara pengajar.
+8. **Segmen Mode Penegakan (Pengajar) dan Panel Terkunci (Santri)**:
+   - Pengajar memilih "Catat saja" atau "Kunci setelah ambang" pada formulir sesi; isian ambang hanya aktif pada pilihan kedua.
+   - Panel terkunci pada santri berisi ikon gembok, judul "Lembar Anda dikunci", sisa waktu yang terus berjalan, jumlah jawaban tersimpan, dan satu kalimat penjelasan. Semua pilihan jawaban dinonaktifkan tanpa menyembunyikan konten soal.
+9. **Aksi Buka Kunci pada Baris Peserta**:
+   - Menggantikan "Buka Koreksi" sebagai aksi utama hanya pada baris berstatus "Terkunci", dengan konfirmasi singkat yang menyebut nama santri dan jumlah jawabannya.
+10. **Pemilih Jenis Sesi Lanjutan**:
+   - Segmen "Remedial" dan "Susulan" pada formulir pembuatan sesi lanjutan, disertai daftar peserta bercentang kosong dan blok ringkasan pengaturan yang tersalin dari sesi sumber.
