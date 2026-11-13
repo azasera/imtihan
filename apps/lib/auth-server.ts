@@ -1,8 +1,15 @@
 import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs"
 
+const convexUrl =
+  process.env.NEXT_PUBLIC_CONVEX_URL || "https://tough-fennec-614.convex.cloud"
+const convexSiteUrl =
+  process.env.NEXT_PUBLIC_CONVEX_SITE_URL ||
+  process.env.CONVEX_SITE_URL ||
+  "https://tough-fennec-614.convex.site"
+
 const auth = convexBetterAuthNextJs({
-  convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
-  convexSiteUrl: process.env.NEXT_PUBLIC_CONVEX_SITE_URL!,
+  convexUrl,
+  convexSiteUrl,
   basePath: "/api/auth",
 })
 
