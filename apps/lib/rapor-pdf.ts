@@ -57,6 +57,7 @@ export async function renderElementToPdf(
       useCORS: true,
       logging: false,
       backgroundColor: "#ffffff",
+      windowWidth: 1200,
       onclone: (clonedDoc) => {
         // Netralkan CSS variable modern color format agar tidak memicu parser lab/oklch
         const root = clonedDoc.documentElement
@@ -164,6 +165,7 @@ export async function exportCombinedReportsPdf(
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
+        windowWidth: 1200,
         onclone: (clonedDoc) => {
           const root = clonedDoc.documentElement
           if (root) {

@@ -416,3 +416,112 @@ export const saveHomeroomAssessment = mutation({
     })
   },
 })
+
+export const saveClassSetting = mutation({
+  args: {
+    className: v.string(),
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+    homeroomTeacherName: v.string(),
+    homeroomTeacherNiy: v.string(),
+    reportDate: v.string(),
+    principalName: v.optional(v.string()),
+    principalNiy: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx)
+    const now = Date.now()
+
+    const existing = await ctx.db
+      .query("classSettings")
+      .withIndex("by_class_and_period", (q) =>
+        q
+          .eq("className", args.className)
+          .eq("academicYear", args.academicYear)
+          .eq("semester", args.semester)
+      )
+      .first()
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        homeroomTeacherName: args.homeroomTeacherName.trim(),
+        homeroomTeacherNiy: args.homeroomTeacherNiy.trim(),
+        reportDate: args.reportDate.trim(),
+        principalName: args.principalName?.trim(),
+        principalNiy: args.principalNiy?.trim(),
+        updatedBy: user.name,
+        updatedAt: now,
+      })
+      return existing._id
+    }
+
+    return await ctx.db.insert("classSettings", {
+      className: args.className,
+      academicYear: args.academicYear,
+      semester: args.semester,
+      homeroomTeacherName: args.homeroomTeacherName.trim(),
+      homeroomTeacherNiy: args.homeroomTeacherNiy.trim(),
+      reportDate: args.reportDate.trim(),
+      principalName: args.principalName?.trim(),
+      principalNiy: args.principalNiy?.trim(),
+      updatedBy: user.name,
+      createdAt: now,
+      updatedAt: now,
+    })
+  },
+})
+
+export const batchApplyDateAndPrincipal = mutation({
+  args: {
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+    reportDate: v.string(),
+    principalName: v.optional(v.string()),
+    principalNiy: v.optional(v.string()),
+    classNames: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx)
+    const now = Date.now()
+
+    let count = 0
+    for (const className of args.classNames) {
+      const existing = await ctx.db
+        .query("classSettings")
+        .withIndex("by_class_and_period", (q) =>
+          q
+            .eq("className", className)
+            .eq("academicYear", args.academicYear)
+            .eq("semester", args.semester)
+        )
+        .first()
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          reportDate: args.reportDate.trim(),
+          ...(args.principalName !== undefined ? { principalName: args.principalName.trim() } : {}),
+          ...(args.principalNiy !== undefined ? { principalNiy: args.principalNiy.trim() } : {}),
+          updatedBy: user.name,
+          updatedAt: now,
+        })
+      } else {
+        await ctx.db.insert("classSettings", {
+          className,
+          academicYear: args.academicYear,
+          semester: args.semester,
+          homeroomTeacherName: "Muhammad Yasser, S.Pd.",
+          homeroomTeacherNiy: "199512310120191027",
+          reportDate: args.reportDate.trim(),
+          principalName: args.principalName?.trim() || "Meditoma, S.Pd.",
+          principalNiy: args.principalNiy?.trim() || "199405220720181024",
+          updatedBy: user.name,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      count++
+    }
+
+    return { updatedCount: count }
+  },
+})

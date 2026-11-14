@@ -16,6 +16,7 @@ import {
   SaveIcon,
   RefreshCwIcon,
   FileSpreadsheetIcon,
+  SlidersHorizontal,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -39,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ReportCardPrintView } from "@/components/rapor/ReportCardPrintView"
+import { ClassSettingsModal } from "@/components/rapor/ClassSettingsModal"
 import {
   exportSingleReportPdf,
   exportSeparatedReportsZip,
@@ -134,6 +136,7 @@ export default function RaporPage() {
 
   // Modal Import dari Excel
   const [isImportModalOpen, setIsImportModalOpen] = React.useState(false)
+  const [isClassSettingsModalOpen, setIsClassSettingsModalOpen] = React.useState(false)
 
   // Santri terpilih untuk cetak rapor & opsi periode asesmen
   const [selectedSantriId, setSelectedSantriId] = React.useState<string>("")
@@ -1384,8 +1387,17 @@ export default function RaporPage() {
               </div>
             </div>
 
-            {/* Aksi Cetak Peramban */}
+            {/* Aksi Cetak Peramban & Pengaturan */}
             <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsClassSettingsModalOpen(true)}
+                className="gap-1.5 text-xs h-8 border-primary/30 text-primary hover:bg-primary/5"
+              >
+                <SlidersHorizontal className="size-3.5" />
+                Pengaturan Wali Kelas & Tanggal Dokumen
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -1464,6 +1476,11 @@ export default function RaporPage() {
                   semester={semester}
                   grades={singleReport.grades}
                   homeroom={singleReport.homeroom}
+                  homeroomTeacherName={singleReport.classSetting?.homeroomTeacherName}
+                  homeroomTeacherNiy={singleReport.classSetting?.homeroomTeacherNiy}
+                  reportDate={singleReport.classSetting?.reportDate}
+                  principalName={singleReport.classSetting?.principalName}
+                  principalNiy={singleReport.classSetting?.principalNiy}
                   showKop={showKop}
                 />
               </div>
@@ -1491,6 +1508,11 @@ export default function RaporPage() {
                     semester={semester}
                     grades={cr.grades}
                     homeroom={cr.homeroom}
+                    homeroomTeacherName={cr.classSetting?.homeroomTeacherName}
+                    homeroomTeacherNiy={cr.classSetting?.homeroomTeacherNiy}
+                    reportDate={cr.classSetting?.reportDate}
+                    principalName={cr.classSetting?.principalName}
+                    principalNiy={cr.classSetting?.principalNiy}
                     showKop={showKop}
                   />
                 </div>
@@ -1511,6 +1533,11 @@ export default function RaporPage() {
             semester={semester}
             grades={singleReport.grades}
             homeroom={singleReport.homeroom}
+            homeroomTeacherName={singleReport.classSetting?.homeroomTeacherName}
+            homeroomTeacherNiy={singleReport.classSetting?.homeroomTeacherNiy}
+            reportDate={singleReport.classSetting?.reportDate}
+            principalName={singleReport.classSetting?.principalName}
+            principalNiy={singleReport.classSetting?.principalNiy}
             showKop={showKop}
           />
         )}
@@ -1533,6 +1560,11 @@ export default function RaporPage() {
                   semester={semester}
                   grades={cr.grades}
                   homeroom={cr.homeroom}
+                  homeroomTeacherName={cr.classSetting?.homeroomTeacherName}
+                  homeroomTeacherNiy={cr.classSetting?.homeroomTeacherNiy}
+                  reportDate={cr.classSetting?.reportDate}
+                  principalName={cr.classSetting?.principalName}
+                  principalNiy={cr.classSetting?.principalNiy}
                   showKop={showKop}
                 />
               </div>
@@ -1639,6 +1671,15 @@ export default function RaporPage() {
           institution: g.institution,
         }))}
         onConfirm={handleImportConfirm}
+      />
+
+      <ClassSettingsModal
+        isOpen={isClassSettingsModalOpen}
+        onClose={() => setIsClassSettingsModalOpen(false)}
+        academicYear={academicYear}
+        semester={semester}
+        currentClass={selectedClass}
+        availableClasses={classOptions}
       />
     </div>
   )

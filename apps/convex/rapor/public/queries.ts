@@ -273,6 +273,16 @@ export const getStudentReportCard = query({
 
     const header = getInstitutionHeader(student.jenjang)
 
+    const classSetting = await ctx.db
+      .query("classSettings")
+      .withIndex("by_class_and_period", (q) =>
+        q
+          .eq("className", student.kelas)
+          .eq("academicYear", args.academicYear)
+          .eq("semester", args.semester)
+      )
+      .first()
+
     return {
       student: {
         santriId: student.santriId,
@@ -306,6 +316,16 @@ export const getStudentReportCard = query({
         homeroomNotes: "-",
         promotionDecision: "-",
       },
+      classSetting: {
+        className: student.kelas,
+        academicYear: args.academicYear,
+        semester: args.semester,
+        homeroomTeacherName: classSetting?.homeroomTeacherName || "Muhammad Yasser, S.Pd.",
+        homeroomTeacherNiy: classSetting?.homeroomTeacherNiy || "199512310120191027",
+        reportDate: classSetting?.reportDate || "Pangkalpinang, 19 Desember 2025",
+        principalName: classSetting?.principalName || "Meditoma, S.Pd.",
+        principalNiy: classSetting?.principalNiy || "199405220720181024",
+      },
     }
   },
 })
@@ -325,6 +345,27 @@ export const getClassReportCards = query({
 
     const allSubjects = await ctx.db.query("subjects").collect()
     const subjectMap = new Map(allSubjects.map((s) => [s.code, s.name]))
+
+    const classSetting = await ctx.db
+      .query("classSettings")
+      .withIndex("by_class_and_period", (q) =>
+        q
+          .eq("className", args.className)
+          .eq("academicYear", args.academicYear)
+          .eq("semester", args.semester)
+      )
+      .first()
+
+    const resolvedClassSetting = {
+      className: args.className,
+      academicYear: args.academicYear,
+      semester: args.semester,
+      homeroomTeacherName: classSetting?.homeroomTeacherName || "Muhammad Yasser, S.Pd.",
+      homeroomTeacherNiy: classSetting?.homeroomTeacherNiy || "199512310120191027",
+      reportDate: classSetting?.reportDate || "Pangkalpinang, 19 Desember 2025",
+      principalName: classSetting?.principalName || "Meditoma, S.Pd.",
+      principalNiy: classSetting?.principalNiy || "199405220720181024",
+    }
 
     const results = []
 
@@ -384,10 +425,60 @@ export const getClassReportCards = query({
           homeroomNotes: "-",
           promotionDecision: "-",
         },
+        classSetting: resolvedClassSetting,
       })
     }
 
     return results
+  },
+})
+
+export const getClassSettings = query({
+  args: {
+    className: v.string(),
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+  },
+  handler: async (ctx, args) => {
+    await ctx.auth.getUserIdentity()
+
+    const setting = await ctx.db
+      .query("classSettings")
+      .withIndex("by_class_and_period", (q) =>
+        q
+          .eq("className", args.className)
+          .eq("academicYear", args.academicYear)
+          .eq("semester", args.semester)
+      )
+      .first()
+
+    return setting ?? {
+      className: args.className,
+      academicYear: args.academicYear,
+      semester: args.semester,
+      homeroomTeacherName: "Muhammad Yasser, S.Pd.",
+      homeroomTeacherNiy: "199512310120191027",
+      reportDate: "Pangkalpinang, 19 Desember 2025",
+      principalName: "Meditoma, S.Pd.",
+      principalNiy: "199405220720181024",
+    }
+  },
+})
+
+export const getAllClassSettings = query({
+  args: {
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+  },
+  handler: async (ctx, args) => {
+    await ctx.auth.getUserIdentity()
+
+    return await ctx.db
+      .query("classSettings")
+      .withIndex("by_period", (q) =>
+        q.eq("academicYear", args.academicYear).eq("semester", args.semester)
+      )
+      .collect()
   },
 })
 

@@ -279,4 +279,21 @@ export default defineSchema({
   })
     .index("by_class", ["className", "academicYear", "semester"])
     .index("by_santri", ["santriId", "academicYear", "semester"]),
+
+  // Pengaturan Wali Kelas, Tanggal Dokumen, dan Pejabat Penandatangan per Rombel
+  classSettings: defineTable({
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+    className: v.string(),
+    homeroomTeacherName: v.string(),
+    homeroomTeacherNiy: v.string(),
+    reportDate: v.string(),
+    principalName: v.optional(v.string()),
+    principalNiy: v.optional(v.string()),
+    updatedBy: v.string(),
+    createdAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_class_and_period", ["className", "academicYear", "semester"])
+    .index("by_period", ["academicYear", "semester"]),
 })

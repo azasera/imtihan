@@ -7,6 +7,8 @@ import {
   isUmumSubject,
   cleanStudentName,
   getInstitutionHeader,
+  getDefaultCpForSubject,
+  generateCompetencyNarrative,
   type Institution,
 } from "@/lib/rapor-utils"
 
@@ -73,9 +75,9 @@ export function ReportCardPrintView({
   student,
   academicYear,
   semester,
-  reportDate = "Pangkalpinang, 09 Oktober 2026",
-  homeroomTeacherName = "Randhy Raviza, S.Pd.",
-  homeroomTeacherNiy = "199507180720181019",
+  reportDate = "Pangkalpinang, 19 Desember 2025",
+  homeroomTeacherName = "Muhammad Yasser, S.Pd.",
+  homeroomTeacherNiy = "199512310120191027",
   principalName = "Meditoma, S.Pd.",
   principalNiy = "199405220720181024",
   grades,
@@ -98,20 +100,29 @@ export function ReportCardPrintView({
       : "E/F"
 
   const defaultExtracurriculars: Array<{ name: string; score: string; description?: string }> = [
-    { name: "Agrobisnis", score: "A", description: "Sangat Aktif" },
-    { name: "TIK", score: "A", description: "Sangat Aktif" },
-    { name: "Jurnalis", score: "B", description: "Aktif" },
-    { name: "Bulu Tangkis", score: "A", description: "Sangat Aktif" },
-    { name: "Tenis Meja", score: "B", description: "Aktif" },
-    { name: "Futsal", score: "A", description: "Sangat Aktif" },
-    { name: "Panahan", score: "A", description: "Sangat Aktif" },
-    { name: "Bola Voli", score: "B", description: "Aktif" },
+    { name: "Tahsin", score: "A", description: "Baik dalam menerapkan hukum nun mati, tanwin dan makhrajul huruf" },
+    { name: "Rohis", score: "-", description: "-" },
+    { name: "Pramuka", score: "-", description: "-" },
+    { name: "Matematika", score: "-", description: "-" },
+    { name: "Ilmu Pengetahuan Alam", score: "-", description: "-" },
+    { name: "Ilmu Pengetahuan Sosial", score: "-", description: "-" },
   ]
 
   const activeExtracurriculars =
     homeroom?.extracurriculars && homeroom.extracurriculars.length > 0
       ? homeroom.extracurriculars
       : defaultExtracurriculars
+
+  const getDisplayNarrative = (grade: ReportCardGradeItem) => {
+    if (grade.competencyNarrative && grade.competencyNarrative.trim() !== "" && grade.competencyNarrative.trim() !== "-") {
+      return grade.competencyNarrative.trim()
+    }
+    if (grade.finalScore > 0) {
+      const cp = getDefaultCpForSubject(grade.subjectCode)
+      return generateCompetencyNarrative(grade.finalScore, cp)
+    }
+    return "-"
+  }
 
   // 1. Rapor KURMER PTS (1 Halaman)
   if (type === "umum" && period === "STS") {
@@ -123,16 +134,17 @@ export function ReportCardPrintView({
           maxWidth: "800px",
           backgroundColor: "#ffffff",
           color: "#000000",
-          fontFamily: "Arial, Helvetica, sans-serif",
+          fontFamily: '"Times New Roman", Times, serif',
         }}
       >
         <div
-          className="report-sheet-page p-6 sm:p-8"
+          className="report-sheet-page shadow-sm border border-neutral-200 print:shadow-none print:border-none"
           style={{
             backgroundColor: "#ffffff",
             color: "#000000",
             boxSizing: "border-box",
             width: "100%",
+            padding: "1in 0.75in", // Moderate margin: Top 1", Bottom 1", Left 0.75", Right 0.75"
           }}
         >
           {showKop && <RaporLetterhead institution={student.jenjang} />}
@@ -165,54 +177,62 @@ export function ReportCardPrintView({
             </p>
           </div>
 
-          {/* Identitas Santri 2 Kolom */}
+          {/* Identitas Santri 2 Kolom Rapi */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "12px",
+              gridTemplateColumns: "1.2fr 0.8fr",
+              gap: "24px",
               fontSize: "11px",
-              lineHeight: "1.4",
+              lineHeight: "1.45",
               marginBottom: "14px",
+              color: "#000000",
             }}
           >
-            <div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Nama Murid</span>
-                <span style={{ fontWeight: "bold" }}>: {cleanStudentName(student.nama)}</span>
-              </div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>NISN</span>
-                <span>: {student.nisn || "-"}</span>
-              </div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Nama Sekolah</span>
-                <span>: {instHeader.institutionName}</span>
-              </div>
-              <div style={{ display: "flex" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Alamat</span>
-                <span>: {instHeader.address}</span>
-              </div>
-            </div>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "11px" }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>Nama Murid</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top", fontWeight: "bold" }}>{cleanStudentName(student.nama)}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>NISN</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{student.nisn || "-"}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>Nama Sekolah</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{instHeader.institutionName}</td>
+                </tr>
+              </tbody>
+            </table>
 
-            <div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Kelas</span>
-                <span style={{ fontWeight: "bold" }}>: {student.kelas}</span>
-              </div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Fase</span>
-                <span>: {fase}</span>
-              </div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Semester</span>
-                <span>: {semester}</span>
-              </div>
-              <div style={{ display: "flex" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Tahun Ajaran</span>
-                <span>: {academicYear}</span>
-              </div>
-            </div>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "11px" }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Kelas</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top", fontWeight: "bold" }}>{student.kelas}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Fase</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{fase}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Semester</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{semester}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Tahun Ajaran</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{academicYear}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           {/* Tabel Nilai (10 Mapel Umum) */}
@@ -227,10 +247,10 @@ export function ReportCardPrintView({
           >
             <thead>
               <tr style={{ backgroundColor: "#E0E0E0", textAlign: "center", fontWeight: "bold" }}>
-                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "32px" }}>No</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left", width: "190px" }}>Mata Pelajaran</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "70px" }}>Nilai Akhir</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left" }}>Capaian Kompetensi</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "32px", textAlign: "center" }}>No</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center", width: "190px" }}>Mata Pelajaran</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "70px", textAlign: "center" }}>Nilai Akhir</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center" }}>Capaian Kompetensi</th>
               </tr>
             </thead>
             <tbody>
@@ -246,8 +266,8 @@ export function ReportCardPrintView({
                     <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center" }}>{idx + 1}</td>
                     <td style={{ border: "1px solid #000000", padding: "4px 6px", fontWeight: "bold" }}>{g.subjectName}</td>
                     <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center", fontWeight: "bold" }}>{g.finalScore}</td>
-                    <td style={{ border: "1px solid #000000", padding: "4px 6px", lineHeight: "1.35", color: "#111827" }}>
-                      {g.competencyNarrative || "-"}
+                    <td style={{ border: "1px solid #000000", padding: "4px 6px", lineHeight: "1.35", color: "#000000" }}>
+                      {getDisplayNarrative(g)}
                     </td>
                   </tr>
                 ))
@@ -259,24 +279,24 @@ export function ReportCardPrintView({
           <div style={{ marginTop: "28px", fontSize: "11px", lineHeight: "1.4" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", textAlign: "center" }}>
               <div style={{ width: "180px" }}>
-                <p style={{ margin: 0 }}>Mengetahui,<br />Orang Tua/Wali,</p>
+                <p style={{ margin: 0 }}>Mengetahui<br />Orangtua/Wali,</p>
                 <div style={{ height: "46px" }} />
-                <p style={{ margin: 0, borderBottom: "1px solid #000000", paddingBottom: "2px" }}>....................................</p>
+                <p style={{ margin: 0 }}>......................</p>
               </div>
 
-              <div style={{ width: "220px", textAlign: "center" }}>
-                <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas,</p>
+              <div style={{ width: "240px", textAlign: "center" }}>
+                <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
                 <div style={{ height: "46px" }} />
                 <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
-                <p style={{ margin: "2px 0 0 0", fontSize: "10px", color: "#374151" }}>NIY. {homeroomTeacherNiy}</p>
+                <p style={{ margin: "2px 0 0 0" }}>NIY.{homeroomTeacherNiy.replace(/^NIY\.?\s*/i, "")}</p>
               </div>
             </div>
 
             <div style={{ textAlign: "center", marginTop: "16px" }}>
-              <p style={{ margin: 0 }}>Mengetahui,<br />Kepala Sekolah,</p>
+              <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
               <div style={{ height: "46px" }} />
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
-              <p style={{ margin: "2px 0 0 0", fontSize: "10px", color: "#374151" }}>NIY. {principalNiy}</p>
+              <p style={{ margin: "2px 0 0 0" }}>NIY.{principalNiy.replace(/^NIY\.?\s*/i, "")}</p>
             </div>
           </div>
         </div>
@@ -284,7 +304,7 @@ export function ReportCardPrintView({
     )
   }
 
-  // 2. Rapor KURMER PAS (2 Halaman)
+  // 2. Rapor KURMER PAS (2 Halaman Sesuai Referensi Gambar 1 & 2)
   if (type === "umum" && period === "SAS") {
     return (
       <div
@@ -294,17 +314,19 @@ export function ReportCardPrintView({
           maxWidth: "800px",
           backgroundColor: "#ffffff",
           color: "#000000",
-          fontFamily: "Arial, Helvetica, sans-serif",
+          fontFamily: '"Times New Roman", Times, serif',
         }}
       >
-        {/* LEMBAR RAPOR KURMER PAS */}
+        {/* HALAMAN 1: KOP SURAT, IDENTITAS SISWA, DAN TABEL NILAI */}
         <div
-          className="report-sheet-page p-6 sm:p-8"
+          className="report-sheet-page shadow-sm border border-neutral-200 mb-8 print:shadow-none print:border-none print:mb-0"
           style={{
             backgroundColor: "#ffffff",
             color: "#000000",
             boxSizing: "border-box",
             width: "100%",
+            padding: "1in 0.75in", // Moderate margin: Top 1", Bottom 1", Left 0.75", Right 0.75"
+            pageBreakAfter: "always",
           }}
         >
           {showKop && <RaporLetterhead institution={student.jenjang} />}
@@ -337,54 +359,62 @@ export function ReportCardPrintView({
             </p>
           </div>
 
-          {/* Identitas Santri 2 Kolom */}
+          {/* Identitas Santri 2 Kolom Rapi */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "12px",
+              gridTemplateColumns: "1.2fr 0.8fr",
+              gap: "24px",
               fontSize: "11px",
-              lineHeight: "1.4",
+              lineHeight: "1.45",
               marginBottom: "12px",
+              color: "#000000",
             }}
           >
-            <div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Nama Murid</span>
-                <span style={{ fontWeight: "bold" }}>: {cleanStudentName(student.nama)}</span>
-              </div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>NISN</span>
-                <span>: {student.nisn || "-"}</span>
-              </div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Nama Sekolah</span>
-                <span>: {instHeader.institutionName}</span>
-              </div>
-              <div style={{ display: "flex" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Alamat</span>
-                <span>: {instHeader.address}</span>
-              </div>
-            </div>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "11px" }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>Nama Murid</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top", fontWeight: "bold" }}>{cleanStudentName(student.nama)}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>NISN</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{student.nisn || "-"}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>Nama Sekolah</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{instHeader.institutionName}</td>
+                </tr>
+              </tbody>
+            </table>
 
-            <div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Kelas</span>
-                <span style={{ fontWeight: "bold" }}>: {student.kelas}</span>
-              </div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Fase</span>
-                <span>: {fase}</span>
-              </div>
-              <div style={{ display: "flex", marginBottom: "3px" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Semester</span>
-                <span>: {semester}</span>
-              </div>
-              <div style={{ display: "flex" }}>
-                <span style={{ width: "95px", color: "#374151" }}>Tahun Ajaran</span>
-                <span>: {academicYear}</span>
-              </div>
-            </div>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "11px" }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Kelas</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top", fontWeight: "bold" }}>{student.kelas}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Fase</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{fase}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Semester</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{semester}</td>
+                </tr>
+                <tr>
+                  <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Tahun Ajaran</td>
+                  <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                  <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{academicYear}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           {/* Tabel Nilai (10 Mapel) */}
@@ -399,10 +429,10 @@ export function ReportCardPrintView({
           >
             <thead>
               <tr style={{ backgroundColor: "#E0E0E0", textAlign: "center", fontWeight: "bold" }}>
-                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "30px" }}>No</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left", width: "185px" }}>Mata Pelajaran</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "65px" }}>Nilai Akhir</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left" }}>Capaian Kompetensi</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "30px", textAlign: "center" }}>No</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center", width: "185px" }}>Mata Pelajaran</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "65px", textAlign: "center" }}>Nilai Akhir</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center" }}>Capaian Kompetensi</th>
               </tr>
             </thead>
             <tbody>
@@ -418,39 +448,53 @@ export function ReportCardPrintView({
                     <td style={{ border: "1px solid #000000", padding: "3.5px 4px", textAlign: "center" }}>{idx + 1}</td>
                     <td style={{ border: "1px solid #000000", padding: "3.5px 6px", fontWeight: "bold" }}>{g.subjectName}</td>
                     <td style={{ border: "1px solid #000000", padding: "3.5px 4px", textAlign: "center", fontWeight: "bold" }}>{g.finalScore}</td>
-                    <td style={{ border: "1px solid #000000", padding: "3.5px 6px", lineHeight: "1.3", color: "#111827" }}>
-                      {g.competencyNarrative || "-"}
+                    <td style={{ border: "1px solid #000000", padding: "3.5px 6px", lineHeight: "1.3", color: "#000000" }}>
+                      {getDisplayNarrative(g)}
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+        </div>
 
+        {/* HALAMAN 2: KOKURIKULER, EKSTRAKURIKULER, KETIDAKHADIRAN, CATATAN, TANGGAPAN, TANDA TANGAN (Sesuai Referensi Gambar 2) */}
+        <div
+          className="report-sheet-page shadow-sm border border-neutral-200 print:shadow-none print:border-none"
+          style={{
+            backgroundColor: "#ffffff",
+            color: "#000000",
+            boxSizing: "border-box",
+            width: "100%",
+            padding: "1in 0.75in", // Moderate margin: Top 1", Bottom 1", Left 0.75", Right 0.75"
+          }}
+        >
           {/* Kotak Kokurikuler */}
           <div
             style={{
               border: "1px solid #000000",
               fontSize: "10.5px",
-              marginTop: "8px",
+              marginBottom: "14px",
             }}
           >
             <div
               style={{
                 backgroundColor: "#E0E0E0",
                 fontWeight: "bold",
+                textAlign: "center",
                 padding: "4px 8px",
                 borderBottom: "1px solid #000000",
               }}
             >
-              Kokurikuler (Penguatan Karakter Profil Pelajar Pancasila)
+              Kokurikuler
             </div>
-            <div style={{ padding: "6px 8px", lineHeight: "1.45", color: "#111827" }}>
-              Ananda sudah baik dalam keimanan dan ketakwaan terhadap Tuhan Yang Maha Esa, tercermin dari sikap religiusnya seperti melaksanakan sholat berjamaah di masjid, melakukan muroja’ah dan menghafal Al-Qur’an, serta menjaga adab terhadap sesama santri dan para asatidzah.
+            <div style={{ padding: "6px 8px", lineHeight: "1.45", color: "#000000" }}>
+              {/* Penguatan Karakter Profil Pelajar Pancasila */}
+              Ananda sudah baik dalam keimanan dan ketakwaan terhadap Tuhan Yang Maha Esa, tercermin dari sikap religiusnya seperti melaksanakan sholat berjamaah di masjid, melakukan muroja&apos;ah dan menghafal Al-Qur&apos;an, serta menjaga adab terhadap teman dan guru.
             </div>
           </div>
 
-          {/* Tabel Ekstrakurikuler */}
+          {/* Tabel Ekstrakurikuler (Sesuai Referensi Gambar 2: No, Ekstrakurikuler, Keterangan) */}
           <div style={{ marginBottom: "14px" }}>
             <table
               style={{
@@ -462,19 +506,25 @@ export function ReportCardPrintView({
             >
               <thead>
                 <tr style={{ backgroundColor: "#E0E0E0", textAlign: "center", fontWeight: "bold" }}>
-                  <th style={{ border: "1px solid #000000", padding: "4px", width: "30px" }}>No</th>
-                  <th style={{ border: "1px solid #000000", padding: "4px 8px", textAlign: "left", width: "220px" }}>Kegiatan Ekstrakurikuler</th>
-                  <th style={{ border: "1px solid #000000", padding: "4px", width: "70px" }}>Predikat</th>
-                  <th style={{ border: "1px solid #000000", padding: "4px 8px", textAlign: "left" }}>Keterangan</th>
+                  <th style={{ border: "1px solid #000000", padding: "4px", width: "32px" }}>No</th>
+                  <th style={{ border: "1px solid #000000", padding: "4px 8px", width: "200px" }}>Ekstrakurikuler</th>
+                  <th style={{ border: "1px solid #000000", padding: "4px 8px" }}>Keterangan</th>
                 </tr>
               </thead>
               <tbody>
                 {activeExtracurriculars.map((e, idx) => (
                   <tr key={e.name}>
-                    <td style={{ border: "1px solid #000000", padding: "3px", textAlign: "center" }}>{idx + 1}</td>
-                    <td style={{ border: "1px solid #000000", padding: "3px 8px", fontWeight: "bold" }}>{e.name}</td>
-                    <td style={{ border: "1px solid #000000", padding: "3px", textAlign: "center", fontWeight: "bold" }}>{e.score}</td>
-                    <td style={{ border: "1px solid #000000", padding: "3px 8px" }}>{e.description || (e.score === "A" ? "Sangat Aktif" : "Aktif")}</td>
+                    <td style={{ border: "1px solid #000000", padding: "3.5px 4px", textAlign: "center" }}>{idx + 1}</td>
+                    <td style={{ border: "1px solid #000000", padding: "3.5px 8px" }}>{e.name}</td>
+                    <td
+                      style={{
+                        border: "1px solid #000000",
+                        padding: "3.5px 8px",
+                        textAlign: e.description && e.description !== "-" ? "left" : "center",
+                      }}
+                    >
+                      {e.description || "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -485,39 +535,60 @@ export function ReportCardPrintView({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "220px 1fr",
-              gap: "12px",
-              marginBottom: "12px",
+              gridTemplateColumns: "180px 1fr",
+              gap: "14px",
+              marginBottom: "14px",
             }}
           >
             {/* Tabel Ketidakhadiran */}
-            <div style={{ border: "1px solid #000000", fontSize: "10.5px" }}>
-              <div
-                style={{
-                  backgroundColor: "#E0E0E0",
-                  fontWeight: "bold",
-                  padding: "4px 8px",
-                  borderBottom: "1px solid #000000",
-                  textAlign: "center",
-                }}
-              >
-                Ketidakhadiran
-              </div>
-              <div style={{ padding: "6px 10px", lineHeight: "1.7" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Sakit</span>
-                  <span style={{ fontWeight: "bold" }}>: {homeroom?.sickDays ?? 0} hari</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Izin</span>
-                  <span style={{ fontWeight: "bold" }}>: {homeroom?.permissionDays ?? 0} hari</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Tanpa Keterangan</span>
-                  <span style={{ fontWeight: "bold" }}>: {homeroom?.absentDays ?? 0} hari</span>
-                </div>
-              </div>
-            </div>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                border: "1px solid #000000",
+                fontSize: "10.5px",
+              }}
+            >
+              <thead>
+                <tr>
+                  <th
+                    colSpan={3}
+                    style={{
+                      backgroundColor: "#E0E0E0",
+                      border: "1px solid #000000",
+                      padding: "4px 6px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Ketidakhadiran
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px 6px" }}>Sakit</td>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px", textAlign: "center", width: "16px" }}>:</td>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px 6px", textAlign: "center" }}>
+                    {homeroom?.sickDays !== undefined ? `${homeroom.sickDays} hari` : "11 hari"}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px 6px" }}>Izin</td>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px", textAlign: "center", width: "16px" }}>:</td>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px 6px", textAlign: "center" }}>
+                    {homeroom?.permissionDays ? `${homeroom.permissionDays} hari` : "hari"}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px 6px" }}>Tanpa Keterangan</td>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px", textAlign: "center", width: "16px" }}>:</td>
+                  <td style={{ border: "1px solid #000000", padding: "3.5px 6px", textAlign: "center" }}>
+                    {homeroom?.absentDays ? `${homeroom.absentDays} hari` : "hari"}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
             {/* Kotak Catatan Wali Kelas */}
             <div style={{ border: "1px solid #000000", fontSize: "10.5px" }}>
@@ -525,13 +596,14 @@ export function ReportCardPrintView({
                 style={{
                   backgroundColor: "#E0E0E0",
                   fontWeight: "bold",
+                  textAlign: "center",
                   padding: "4px 8px",
                   borderBottom: "1px solid #000000",
                 }}
               >
                 Catatan Wali Kelas
               </div>
-              <div style={{ padding: "6px 8px", lineHeight: "1.45", color: "#111827", fontStyle: "italic" }}>
+              <div style={{ padding: "6px 8px", lineHeight: "1.45", color: "#000000" }}>
                 {homeroom?.homeroomNotes ||
                   "Alhamdulillah, semangat belajar dan tingkatkan terus prestasimu. Ta’at kepada guru dan orangtua serta saling menyayangi sesama teman di sekolah. Istiqomah menghafal dan muraja’ah Al-qur’an setiap hari, semoga engkau menjadi anak sholih. Baarokallahu fiikum."}
               </div>
@@ -543,21 +615,22 @@ export function ReportCardPrintView({
             style={{
               border: "1px solid #000000",
               fontSize: "10.5px",
-              marginBottom: "12px",
+              marginBottom: "18px",
             }}
           >
             <div
               style={{
                 backgroundColor: "#E0E0E0",
                 fontWeight: "bold",
+                textAlign: "center",
                 padding: "4px 8px",
                 borderBottom: "1px solid #000000",
               }}
             >
-              Tanggapan Orang Tua / Wali Murid:
+              Tanggapan Orang Tua/Wali Murid
             </div>
-            <div style={{ padding: "10px 8px 8px 8px", minHeight: "36px", color: "#6b7280" }}>
-              {homeroom?.parentResponse || "...................................................................................................................................................................................................."}
+            <div style={{ padding: "8px", minHeight: "55px", color: "#000000" }}>
+              {homeroom?.parentResponse || ""}
             </div>
           </div>
 
@@ -585,27 +658,27 @@ export function ReportCardPrintView({
           )}
 
           {/* Blok 3 Tanda Tangan */}
-          <div style={{ marginTop: "24px", fontSize: "11px", lineHeight: "1.4" }}>
+          <div style={{ marginTop: "20px", fontSize: "11px", lineHeight: "1.4" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", textAlign: "center" }}>
               <div style={{ width: "180px" }}>
-                <p style={{ margin: 0 }}>Mengetahui,<br />Orang Tua/Wali,</p>
+                <p style={{ margin: 0 }}>Mengetahui<br />Orangtua/Wali,</p>
                 <div style={{ height: "46px" }} />
-                <p style={{ margin: 0, borderBottom: "1px solid #000000", paddingBottom: "2px" }}>....................................</p>
+                <p style={{ margin: 0 }}>......................</p>
               </div>
 
-              <div style={{ width: "220px", textAlign: "center" }}>
-                <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas,</p>
+              <div style={{ width: "240px", textAlign: "center" }}>
+                <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
                 <div style={{ height: "46px" }} />
                 <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
-                <p style={{ margin: "2px 0 0 0", fontSize: "10px", color: "#374151" }}>NIY. {homeroomTeacherNiy}</p>
+                <p style={{ margin: "2px 0 0 0" }}>NIY.{homeroomTeacherNiy.replace(/^NIY\.?\s*/i, "")}</p>
               </div>
             </div>
 
             <div style={{ textAlign: "center", marginTop: "16px" }}>
-              <p style={{ margin: 0 }}>Mengetahui,<br />Kepala Sekolah,</p>
+              <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
               <div style={{ height: "46px" }} />
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
-              <p style={{ margin: "2px 0 0 0", fontSize: "10px", color: "#374151" }}>NIY. {principalNiy}</p>
+              <p style={{ margin: "2px 0 0 0" }}>NIY.{principalNiy.replace(/^NIY\.?\s*/i, "")}</p>
             </div>
           </div>
         </div>
@@ -622,16 +695,17 @@ export function ReportCardPrintView({
         maxWidth: "800px",
         backgroundColor: "#ffffff",
         color: "#000000",
-        fontFamily: "Arial, Helvetica, sans-serif",
+        fontFamily: '"Times New Roman", Times, serif',
       }}
     >
       <div
-        className="report-sheet-page p-6 sm:p-8"
+        className="report-sheet-page shadow-sm border border-neutral-200 print:shadow-none print:border-none"
         style={{
           backgroundColor: "#ffffff",
           color: "#000000",
-          minHeight: "1050px",
           boxSizing: "border-box",
+          width: "100%",
+          padding: "1in 0.75in", // Moderate margin: Top 1", Bottom 1", Left 0.75", Right 0.75"
         }}
       >
         {showKop && <RaporLetterhead institution={student.jenjang} />}
@@ -666,46 +740,57 @@ export function ReportCardPrintView({
           </p>
         </div>
 
-        {/* Identitas Santri 2 Kolom Ringkas */}
+        {/* Identitas Santri 2 Kolom Ringkas Rapi */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "12px",
+            gridTemplateColumns: "1.2fr 0.8fr",
+            gap: "24px",
             fontSize: "11px",
-            lineHeight: "1.4",
+            lineHeight: "1.45",
             marginBottom: "14px",
+            color: "#000000",
           }}
         >
-          <div>
-            <div style={{ display: "flex", marginBottom: "3px" }}>
-              <span style={{ width: "95px", color: "#374151" }}>Nama Murid</span>
-              <span style={{ fontWeight: "bold" }}>: {cleanStudentName(student.nama)}</span>
-            </div>
-            <div style={{ display: "flex", marginBottom: "3px" }}>
-              <span style={{ width: "95px", color: "#374151" }}>NISN</span>
-              <span>: {student.nisn || "-"}</span>
-            </div>
-            <div style={{ display: "flex" }}>
-              <span style={{ width: "95px", color: "#374151" }}>Nama Sekolah</span>
-              <span>: {instHeader.institutionName}</span>
-            </div>
-          </div>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "11px" }}>
+            <tbody>
+              <tr>
+                <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>Nama Murid</td>
+                <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                <td style={{ padding: "1.5px 0", verticalAlign: "top", fontWeight: "bold" }}>{cleanStudentName(student.nama)}</td>
+              </tr>
+              <tr>
+                <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>NISN</td>
+                <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{student.nisn || "-"}</td>
+              </tr>
+              <tr>
+                <td style={{ width: "85px", padding: "1.5px 0", verticalAlign: "top" }}>Nama Sekolah</td>
+                <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{instHeader.institutionName}</td>
+              </tr>
+            </tbody>
+          </table>
 
-          <div>
-            <div style={{ display: "flex", marginBottom: "3px" }}>
-              <span style={{ width: "95px", color: "#374151" }}>Kelas</span>
-              <span style={{ fontWeight: "bold" }}>: {student.kelas}</span>
-            </div>
-            <div style={{ display: "flex", marginBottom: "3px" }}>
-              <span style={{ width: "95px", color: "#374151" }}>Semester</span>
-              <span>: {semester}</span>
-            </div>
-            <div style={{ display: "flex" }}>
-              <span style={{ width: "95px", color: "#374151" }}>Tahun Ajaran</span>
-              <span>: {academicYear}</span>
-            </div>
-          </div>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "11px" }}>
+            <tbody>
+              <tr>
+                <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Kelas</td>
+                <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                <td style={{ padding: "1.5px 0", verticalAlign: "top", fontWeight: "bold" }}>{student.kelas}</td>
+              </tr>
+              <tr>
+                <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Semester</td>
+                <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{semester}</td>
+              </tr>
+              <tr>
+                <td style={{ width: "80px", padding: "1.5px 0", verticalAlign: "top" }}>Tahun Ajaran</td>
+                <td style={{ width: "12px", padding: "1.5px 0", verticalAlign: "top", textAlign: "center" }}>:</td>
+                <td style={{ padding: "1.5px 0", verticalAlign: "top" }}>{academicYear}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         {/* Bagian A. Ketercapaian Hasil Belajar (6 Mapel Diniyah) */}
@@ -730,10 +815,10 @@ export function ReportCardPrintView({
           >
             <thead>
               <tr style={{ backgroundColor: "#E0E0E0", textAlign: "center", fontWeight: "bold" }}>
-                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "32px" }}>No</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left", width: "170px" }}>Mata Pelajaran</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "70px" }}>Nilai Akhir</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left" }}>Capaian Kompetensi</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "32px", textAlign: "center" }}>No</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center", width: "170px" }}>Mata Pelajaran</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "70px", textAlign: "center" }}>Nilai Akhir</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center" }}>Capaian Kompetensi</th>
               </tr>
             </thead>
             <tbody>
@@ -749,8 +834,8 @@ export function ReportCardPrintView({
                     <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center" }}>{idx + 1}</td>
                     <td style={{ border: "1px solid #000000", padding: "4px 6px", fontWeight: "bold" }}>{g.subjectName}</td>
                     <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center", fontWeight: "bold" }}>{g.finalScore}</td>
-                    <td style={{ border: "1px solid #000000", padding: "4px 6px", lineHeight: "1.35", color: "#111827" }}>
-                      {g.competencyNarrative || "-"}
+                    <td style={{ border: "1px solid #000000", padding: "4px 6px", lineHeight: "1.35", color: "#000000" }}>
+                      {getDisplayNarrative(g)}
                     </td>
                   </tr>
                 ))
@@ -781,15 +866,15 @@ export function ReportCardPrintView({
           >
             <thead>
               <tr style={{ backgroundColor: "#E0E0E0", textAlign: "center", fontWeight: "bold" }}>
-                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "32px" }}>No</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left", width: "170px" }}>Mata Pelajaran</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left" }}>Capaian Hafalan Murid</th>
-                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "left" }}>
+                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "32px", textAlign: "center" }}>No</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center", width: "170px" }}>Mata Pelajaran</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center" }}>Capaian Hafalan Murid</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 6px", textAlign: "center" }}>
                   {period === "STS"
                     ? `Target Hafalan Tengah Semester ${semester}`
                     : `Target Hafalan Semester ${semester}`}
                 </th>
-                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "95px" }}>KETERANGAN</th>
+                <th style={{ border: "1px solid #000000", padding: "5px 4px", width: "95px", textAlign: "center" }}>KETERANGAN</th>
               </tr>
             </thead>
             <tbody>
@@ -814,24 +899,24 @@ export function ReportCardPrintView({
         <div style={{ marginTop: "28px", fontSize: "11px", lineHeight: "1.4" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", textAlign: "center" }}>
             <div style={{ width: "180px" }}>
-              <p style={{ margin: 0 }}>Mengetahui,<br />Orang Tua/Wali,</p>
+              <p style={{ margin: 0 }}>Mengetahui<br />Orangtua/Wali,</p>
               <div style={{ height: "46px" }} />
-              <p style={{ margin: 0, borderBottom: "1px solid #000000", paddingBottom: "2px" }}>....................................</p>
+              <p style={{ margin: 0 }}>......................</p>
             </div>
 
-            <div style={{ width: "220px", textAlign: "center" }}>
-              <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas,</p>
+            <div style={{ width: "240px", textAlign: "center" }}>
+              <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
               <div style={{ height: "46px" }} />
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
-              <p style={{ margin: "2px 0 0 0", fontSize: "10px", color: "#374151" }}>NIY. {homeroomTeacherNiy}</p>
+              <p style={{ margin: "2px 0 0 0" }}>NIY.{homeroomTeacherNiy.replace(/^NIY\.?\s*/i, "")}</p>
             </div>
           </div>
 
           <div style={{ textAlign: "center", marginTop: "16px" }}>
-            <p style={{ margin: 0 }}>Mengetahui,<br />Kepala Sekolah,</p>
+            <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
             <div style={{ height: "46px" }} />
             <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
-            <p style={{ margin: "2px 0 0 0", fontSize: "10px", color: "#374151" }}>NIY. {principalNiy}</p>
+            <p style={{ margin: "2px 0 0 0" }}>NIY.{principalNiy.replace(/^NIY\.?\s*/i, "")}</p>
           </div>
         </div>
       </div>
