@@ -1,7 +1,43 @@
 import { v } from "convex/values"
 import { query } from "../../_generated/server"
-import { requireAuthenticatedUser, findStudentsByClassFlexible } from "../private/helpers"
+import {
+  requireAuthenticatedUser,
+  findStudentsByClassFlexible,
+  getDefaultHomeroomForClass,
+  normalizeClassName,
+} from "../private/helpers"
 import { getInstitutionHeader, cleanStudentName } from "../../../lib/rapor-utils"
+
+function resolveClassSettingHelper(
+  className: string,
+  academicYear: string,
+  semester: 1 | 2,
+  setting: any
+) {
+  const norm = normalizeClassName(className)
+  const defaultHomeroom = getDefaultHomeroomForClass(className)
+
+  let teacherName = setting?.homeroomTeacherName?.trim()
+  let teacherNiy = setting?.homeroomTeacherNiy?.trim()
+
+  // Jika belum disetel ATAU masih default dummy Muhammad Yasser di rombel selain 9A
+  if (!teacherName || (teacherName === "Muhammad Yasser, S.Pd." && norm !== "9A")) {
+    teacherName = defaultHomeroom.name
+    teacherNiy = defaultHomeroom.niy
+  }
+
+  return {
+    className,
+    academicYear,
+    semester,
+    homeroomTeacherName: teacherName,
+    homeroomTeacherNiy:
+      teacherNiy && teacherNiy !== "-" ? teacherNiy : defaultHomeroom.niy || "",
+    reportDate: setting?.reportDate || "Pangkalpinang, 19 Desember 2025",
+    principalName: setting?.principalName || "Meditoma, S.Pd.",
+    principalNiy: setting?.principalNiy || "199405220720181024",
+  }
+}
 
 export const listAcademicPeriods = query({
   args: {},
@@ -102,6 +138,7 @@ export const getSubjectGradesForClass = query({
         className: s.kelas,
         institution: s.jenjang,
         dailyScore: g?.dailyScore ?? 0,
+        dailyAssessments: g?.dailyAssessments,
         midtermScore: g?.midtermScore ?? 0,
         finalExamScore: g?.finalExamScore ?? 0,
         finalScore: g?.finalScore ?? 0,
@@ -317,14 +354,12 @@ export const getStudentReportCard = query({
         promotionDecision: "-",
       },
       classSetting: {
-        className: student.kelas,
-        academicYear: args.academicYear,
-        semester: args.semester,
-        homeroomTeacherName: classSetting?.homeroomTeacherName || "Muhammad Yasser, S.Pd.",
-        homeroomTeacherNiy: classSetting?.homeroomTeacherNiy || "199512310120191027",
-        reportDate: classSetting?.reportDate || "Pangkalpinang, 19 Desember 2025",
-        principalName: classSetting?.principalName || "Meditoma, S.Pd.",
-        principalNiy: classSetting?.principalNiy || "199405220720181024",
+        ...resolveClassSettingHelper(
+          student.kelas,
+          args.academicYear,
+          args.semester,
+          classSetting
+        ),
       },
     }
   },
@@ -356,16 +391,12 @@ export const getClassReportCards = query({
       )
       .first()
 
-    const resolvedClassSetting = {
-      className: args.className,
-      academicYear: args.academicYear,
-      semester: args.semester,
-      homeroomTeacherName: classSetting?.homeroomTeacherName || "Muhammad Yasser, S.Pd.",
-      homeroomTeacherNiy: classSetting?.homeroomTeacherNiy || "199512310120191027",
-      reportDate: classSetting?.reportDate || "Pangkalpinang, 19 Desember 2025",
-      principalName: classSetting?.principalName || "Meditoma, S.Pd.",
-      principalNiy: classSetting?.principalNiy || "199405220720181024",
-    }
+    const resolvedClassSetting = resolveClassSettingHelper(
+      args.className,
+      args.academicYear,
+      args.semester,
+      classSetting
+    )
 
     const results = []
 
@@ -452,16 +483,12 @@ export const getClassSettings = query({
       )
       .first()
 
-    return setting ?? {
-      className: args.className,
-      academicYear: args.academicYear,
-      semester: args.semester,
-      homeroomTeacherName: "Muhammad Yasser, S.Pd.",
-      homeroomTeacherNiy: "199512310120191027",
-      reportDate: "Pangkalpinang, 19 Desember 2025",
-      principalName: "Meditoma, S.Pd.",
-      principalNiy: "199405220720181024",
-    }
+    return resolveClassSettingHelper(
+      args.className,
+      args.academicYear,
+      args.semester,
+      setting
+    )
   },
 })
 
@@ -473,12 +500,16 @@ export const getAllClassSettings = query({
   handler: async (ctx, args) => {
     await ctx.auth.getUserIdentity()
 
-    return await ctx.db
+    const raw = await ctx.db
       .query("classSettings")
       .withIndex("by_period", (q) =>
         q.eq("academicYear", args.academicYear).eq("semester", args.semester)
       )
       .collect()
+
+    return raw.map((s) =>
+      resolveClassSettingHelper(s.className, s.academicYear, s.semester, s)
+    )
   },
 })
 

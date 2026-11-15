@@ -223,6 +223,19 @@ export default defineSchema({
     className: v.string(),
     institution: v.union(v.literal("SMPITA"), v.literal("SMAITA"), v.literal("MTA")),
     dailyScore: v.number(), // rata-rata PH/Tugas
+    dailyAssessments: v.optional(
+      v.object({
+        ph: v.optional(
+          v.array(
+            v.object({
+              score: v.optional(v.number()),
+              remedial: v.optional(v.number()),
+            })
+          )
+        ),
+        tasks: v.optional(v.array(v.number())),
+      })
+    ),
     midtermScore: v.number(), // STS / PTS
     finalExamScore: v.number(), // SAS / PAS
     finalScore: v.number(), // Nilai Akhir Rapor (NAR)

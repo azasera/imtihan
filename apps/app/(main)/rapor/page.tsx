@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog"
 import { ReportCardPrintView } from "@/components/rapor/ReportCardPrintView"
 import { ClassSettingsModal } from "@/components/rapor/ClassSettingsModal"
+import { DailyAssessmentsModal } from "@/components/rapor/DailyAssessmentsModal"
 import {
   exportSingleReportPdf,
   exportSeparatedReportsZip,
@@ -56,10 +57,12 @@ import {
   isUmumSubject,
   OFFICIAL_SUBJECTS,
   type Institution,
+  type DailyAssessments,
 } from "@/lib/rapor-utils"
 
 interface GradeOverride {
   dailyScore?: number
+  dailyAssessments?: DailyAssessments
   midtermScore?: number
   finalExamScore?: number
   competencyNarrative?: string
@@ -137,6 +140,7 @@ export default function RaporPage() {
   // Modal Import dari Excel
   const [isImportModalOpen, setIsImportModalOpen] = React.useState(false)
   const [isClassSettingsModalOpen, setIsClassSettingsModalOpen] = React.useState(false)
+  const [isDailyAssessmentsModalOpen, setIsDailyAssessmentsModalOpen] = React.useState(false)
 
   // Santri terpilih untuk cetak rapor & opsi periode asesmen
   const [selectedSantriId, setSelectedSantriId] = React.useState<string>("")
@@ -238,6 +242,8 @@ export default function RaporPage() {
     return gradesData.map((g) => {
       const ov = gradeOverrides[g.santriId]
       const dailyScore = ov?.dailyScore !== undefined ? ov.dailyScore : g.dailyScore
+      const dailyAssessments =
+        ov?.dailyAssessments !== undefined ? ov.dailyAssessments : (g as any).dailyAssessments
       const midtermScore = ov?.midtermScore !== undefined ? ov.midtermScore : g.midtermScore
       const finalExamScore = ov?.finalExamScore !== undefined ? ov.finalExamScore : g.finalExamScore
       const finalScore = calculateNAR(dailyScore, midtermScore, finalExamScore)
@@ -251,6 +257,7 @@ export default function RaporPage() {
         studentName: cleanStudentName(g.studentName),
         institution: g.institution as Institution,
         dailyScore,
+        dailyAssessments,
         midtermScore,
         finalExamScore,
         finalScore,
@@ -368,6 +375,7 @@ export default function RaporPage() {
         studentName: g.studentName,
         institution: g.institution || "SMPITA",
         dailyScore: typeof g.dailyScore === "number" && !isNaN(g.dailyScore) ? g.dailyScore : 0,
+        dailyAssessments: g.dailyAssessments,
         midtermScore: typeof g.midtermScore === "number" && !isNaN(g.midtermScore) ? g.midtermScore : 0,
         finalExamScore: typeof g.finalExamScore === "number" && !isNaN(g.finalExamScore) ? g.finalExamScore : 0,
         finalScore: g.finalScore,
@@ -418,6 +426,26 @@ export default function RaporPage() {
     } finally {
       setIsPulling(false)
     }
+  }
+
+  const handleSaveDailyAssessments = (
+    updatedRows: Array<{
+      santriId: string
+      dailyScore: number
+      dailyAssessments: DailyAssessments
+    }>
+  ) => {
+    setGradeOverrides((prev) => {
+      const next = { ...prev }
+      for (const row of updatedRows) {
+        next[row.santriId] = {
+          ...next[row.santriId],
+          dailyScore: row.dailyScore,
+          dailyAssessments: row.dailyAssessments,
+        }
+      }
+      return next
+    })
   }
 
   const handleImportConfirm = async (
@@ -862,6 +890,15 @@ export default function RaporPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setIsDailyAssessmentsModalOpen(true)}
+                className="gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+              >
+                <BookOpenIcon className="size-3.5" />
+                Buku Nilai Harian (PH & Tugas)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setIsImportModalOpen(true)}
                 className="gap-1.5 text-xs text-blue-700 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
               >
@@ -921,7 +958,19 @@ export default function RaporPage() {
                   <th className="p-2 w-10 text-center">No</th>
                   <th className="p-2 w-28">NISN</th>
                   <th className="p-2 min-w-40">Nama Santri</th>
-                  <th className="p-2 w-20 text-center">PH / Tugas</th>
+                  <th className="p-2 w-28 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <span>PH / Tugas</span>
+                      <button
+                        type="button"
+                        title="Buka Buku Nilai Harian (PH & Tugas)"
+                        onClick={() => setIsDailyAssessmentsModalOpen(true)}
+                        className="p-1 rounded hover:bg-muted text-emerald-700 dark:text-emerald-400"
+                      >
+                        <BookOpenIcon className="size-3.5" />
+                      </button>
+                    </div>
+                  </th>
                   <th className="p-2 w-20 text-center">STS (PTS)</th>
                   <th className="p-2 w-20 text-center">SAS (PAS)</th>
                   <th className="p-2 w-20 text-center">Nilai Akhir</th>
@@ -962,12 +1011,23 @@ export default function RaporPage() {
                       <td className="p-2 font-mono text-[11px]">{g.nisn}</td>
                       <td className="p-2 font-medium">{g.studentName}</td>
                       <td className="p-1.5 text-center">
-                        <Input
-                          type="number"
-                          value={g.dailyScore || ""}
-                          onChange={(e) => handleScoreChange(g.santriId, "dailyScore", parseFloat(e.target.value))}
-                          className="h-7 text-center text-xs font-semibold p-1"
-                        />
+                        <div className="flex items-center justify-center gap-1">
+                          <Input
+                            type="number"
+                            value={g.dailyScore || ""}
+                            onChange={(e) => handleScoreChange(g.santriId, "dailyScore", parseFloat(e.target.value))}
+                            className="h-7 text-center text-xs font-semibold p-1 w-16"
+                          />
+                          {g.dailyAssessments?.ph && g.dailyAssessments.ph.length > 0 && (
+                            <span
+                              title="Memiliki rincian asesmen PH"
+                              className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded cursor-pointer"
+                              onClick={() => setIsDailyAssessmentsModalOpen(true)}
+                            >
+                              PH
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-1.5 text-center">
                         <Input
@@ -1680,6 +1740,25 @@ export default function RaporPage() {
         semester={semester}
         currentClass={selectedClass}
         availableClasses={classOptions}
+      />
+
+      <DailyAssessmentsModal
+        open={isDailyAssessmentsModalOpen}
+        onOpenChange={setIsDailyAssessmentsModalOpen}
+        subjectName={
+          availableSubjectsList.all.find((s) => s.code === selectedSubject)?.name ?? selectedSubject
+        }
+        subjectCode={selectedSubject}
+        className={selectedClass}
+        kkm={isDiniyahSubject(selectedSubject) ? 70 : 75}
+        students={editableGrades.map((g) => ({
+          santriId: g.santriId,
+          nisn: g.nisn,
+          studentName: g.studentName,
+          dailyAssessments: g.dailyAssessments,
+          currentDailyScore: g.dailyScore,
+        }))}
+        onSave={handleSaveDailyAssessments}
       />
     </div>
   )

@@ -297,3 +297,102 @@ export function cleanStudentName(name: string): string {
   return name.replace(/\s*\((?:nisn[:\s]*)?\d+\)\s*$/i, "").trim()
 }
 
+export interface DailyAssessmentPh {
+  score?: number
+  remedial?: number
+}
+
+export interface DailyAssessments {
+  ph?: DailyAssessmentPh[]
+  tasks?: Array<number | undefined>
+}
+
+/**
+ * Menghitung nilai efektif suatu Penilaian Harian:
+ * Jika nilai remedial diisi (> 0), nilai remedial yang digunakan.
+ * Jika tidak, nilai murni yang digunakan.
+ */
+export function calculateEffectivePhScore(
+  score?: number,
+  remedial?: number,
+  kkm?: number
+): number | null {
+  const hasRemedial = typeof remedial === "number" && !isNaN(remedial) && remedial > 0
+  const hasScore = typeof score === "number" && !isNaN(score)
+
+  if (!hasRemedial && !hasScore) return null
+
+  if (hasRemedial) {
+    let effective = remedial!
+    if (typeof kkm === "number" && kkm > 0 && effective > kkm && (score ?? 0) < kkm) {
+      // Pembatasan standar remedial jika sekolah menetapkan batas KKM
+      effective = Math.min(effective, kkm)
+    }
+    return effective
+  }
+
+  return score!
+}
+
+/**
+ * Menghitung rata-rata Penilaian Harian secara dinamis (hanya dari PH yang sudah terlaksana/diisi).
+ */
+export function calculateAveragePh(
+  phs?: Array<DailyAssessmentPh | undefined>,
+  kkm?: number
+): number {
+  if (!phs || phs.length === 0) return 0
+
+  const validScores: number[] = []
+  for (const item of phs) {
+    if (!item) continue
+    const effective = calculateEffectivePhScore(item.score, item.remedial, kkm)
+    if (effective !== null) {
+      validScores.push(effective)
+    }
+  }
+
+  if (validScores.length === 0) return 0
+  const sum = validScores.reduce((acc, val) => acc + val, 0)
+  return Math.round(sum / validScores.length)
+}
+
+/**
+ * Menghitung rata-rata Tugas secara dinamis (hanya dari tugas yang terisi).
+ */
+export function calculateAverageTasks(tasks?: Array<number | undefined>): number {
+  if (!tasks || tasks.length === 0) return 0
+
+  const validTasks = tasks.filter((t): t is number => typeof t === "number" && !isNaN(t))
+  if (validTasks.length === 0) return 0
+
+  const sum = validTasks.reduce((acc, val) => acc + val, 0)
+  return Math.round(sum / validTasks.length)
+}
+
+/**
+ * Menghitung nilai gabungan Harian (dailyScore):
+ * - Jika ada PH dan Tugas: 60% Av. PH + 40% Av. Tugas
+ * - Jika hanya ada PH: 100% Av. PH
+ * - Jika hanya ada Tugas: 100% Av. Tugas
+ */
+export function calculateCompositeDailyScore(
+  phs?: Array<DailyAssessmentPh | undefined>,
+  tasks?: Array<number | undefined>,
+  kkm?: number
+): number {
+  const avgPh = calculateAveragePh(phs, kkm)
+  const avgTasks = calculateAverageTasks(tasks)
+
+  const hasPh = avgPh > 0
+  const hasTasks = avgTasks > 0
+
+  if (hasPh && hasTasks) {
+    return Math.round(0.6 * avgPh + 0.4 * avgTasks)
+  }
+  if (hasPh) return avgPh
+  if (hasTasks) return avgTasks
+  return 0
+}
+
+

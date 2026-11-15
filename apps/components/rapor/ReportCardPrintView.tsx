@@ -69,6 +69,13 @@ export interface ReportCardPrintViewProps {
  * Seluruh styling menggunakan palet warna hex standar (#000000, #E0E0E0, #ffffff)
  * untuk mencegah galat unsupported color function lab/oklch pada canvas/peramban.
  */
+function formatNiyLabel(val?: string): string {
+  if (!val) return "NIY. ........................................"
+  const clean = val.replace(/^NIY\.?\s*/i, "").trim()
+  if (!clean || clean === "-") return "NIY. ........................................"
+  return `NIY.${clean}`
+}
+
 export function ReportCardPrintView({
   type,
   period = "SAS",
@@ -288,7 +295,7 @@ export function ReportCardPrintView({
                 <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
                 <div style={{ height: "46px" }} />
                 <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
-                <p style={{ margin: "2px 0 0 0" }}>NIY.{homeroomTeacherNiy.replace(/^NIY\.?\s*/i, "")}</p>
+                <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(homeroomTeacherNiy)}</p>
               </div>
             </div>
 
@@ -296,7 +303,7 @@ export function ReportCardPrintView({
               <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
               <div style={{ height: "46px" }} />
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
-              <p style={{ margin: "2px 0 0 0" }}>NIY.{principalNiy.replace(/^NIY\.?\s*/i, "")}</p>
+              <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(principalNiy)}</p>
             </div>
           </div>
         </div>
@@ -670,7 +677,7 @@ export function ReportCardPrintView({
                 <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
                 <div style={{ height: "46px" }} />
                 <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
-                <p style={{ margin: "2px 0 0 0" }}>NIY.{homeroomTeacherNiy.replace(/^NIY\.?\s*/i, "")}</p>
+                <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(homeroomTeacherNiy)}</p>
               </div>
             </div>
 
@@ -678,7 +685,7 @@ export function ReportCardPrintView({
               <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
               <div style={{ height: "46px" }} />
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
-              <p style={{ margin: "2px 0 0 0" }}>NIY.{principalNiy.replace(/^NIY\.?\s*/i, "")}</p>
+              <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(principalNiy)}</p>
             </div>
           </div>
         </div>
@@ -908,7 +915,7 @@ export function ReportCardPrintView({
               <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
               <div style={{ height: "46px" }} />
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
-              <p style={{ margin: "2px 0 0 0" }}>NIY.{homeroomTeacherNiy.replace(/^NIY\.?\s*/i, "")}</p>
+              <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(homeroomTeacherNiy)}</p>
             </div>
           </div>
 
@@ -916,7 +923,7 @@ export function ReportCardPrintView({
             <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
             <div style={{ height: "46px" }} />
             <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
-            <p style={{ margin: "2px 0 0 0" }}>NIY.{principalNiy.replace(/^NIY\.?\s*/i, "")}</p>
+            <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(principalNiy)}</p>
           </div>
         </div>
       </div>

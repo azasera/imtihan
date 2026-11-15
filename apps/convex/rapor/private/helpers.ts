@@ -34,6 +34,26 @@ export function normalizeClassName(c: string): string {
     .replace(/^XII(?=[A-Z0-9]|$)/, "12")
 }
 
+export function getDefaultHomeroomForClass(className: string): { name: string; niy: string } {
+  const norm = normalizeClassName(className)
+
+  const map: Record<string, { name: string; niy: string }> = {
+    "7A": { name: "Riko", niy: "200109290320231159" },
+    "7B": { name: "Randhy Raviza, S.Pd.", niy: "199507180720181019" },
+    "7C": { name: "Ayu Ratnapury, M.Pd.", niy: "" },
+    "8A": { name: "Hendy Sumpeno, S.T", niy: "" },
+    "8B": { name: "Adi Saputra, S.H.", niy: "" },
+    "8C": { name: "Ipikasari, M.Pd.", niy: "" },
+    "8D": { name: "Nurrahma Firmania, S.Pd.I", niy: "" },
+    "9A": { name: "Muhammad Yasser, S.Pd.", niy: "199512310120191027" },
+    "9B": { name: "Muhlis Annas, S.Pd.", niy: "" },
+    "9C": { name: "Hevi Ratna Sari, S.Si.", niy: "" },
+    "10A": { name: "Ahmad Reihan, S.Pd.", niy: "" },
+  }
+
+  return map[norm] ?? { name: "Muhammad Yasser, S.Pd.", niy: "199512310120191027" }
+}
+
 export async function findStudentsByClassFlexible(
   ctx: QueryCtx | MutationCtx,
   className: string

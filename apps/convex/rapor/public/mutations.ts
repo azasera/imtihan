@@ -1,6 +1,10 @@
 import { v } from "convex/values"
 import { mutation } from "../../_generated/server"
-import { requireAuthenticatedUser } from "../private/helpers"
+import {
+  requireAuthenticatedUser,
+  getDefaultHomeroomForClass,
+  normalizeClassName,
+} from "../private/helpers"
 import { calculateNAR, getGradePredicate, generateCompetencyNarrative } from "../../../lib/rapor-utils"
 
 export const saveAcademicPeriod = mutation({
@@ -115,6 +119,19 @@ export const saveSubjectGrades = mutation({
         studentName: v.string(),
         institution: v.optional(v.string()),
         dailyScore: v.number(),
+        dailyAssessments: v.optional(
+          v.object({
+            ph: v.optional(
+              v.array(
+                v.object({
+                  score: v.optional(v.number()),
+                  remedial: v.optional(v.number()),
+                })
+              )
+            ),
+            tasks: v.optional(v.array(v.number())),
+          })
+        ),
         midtermScore: v.number(),
         finalExamScore: v.number(),
         finalScore: v.optional(v.number()),
@@ -160,6 +177,7 @@ export const saveSubjectGrades = mutation({
       if (existing) {
         await ctx.db.patch(existing._id, {
           dailyScore,
+          dailyAssessments: g.dailyAssessments !== undefined ? g.dailyAssessments : existing.dailyAssessments,
           midtermScore,
           finalExamScore,
           finalScore,
@@ -179,6 +197,7 @@ export const saveSubjectGrades = mutation({
           className: args.className,
           institution,
           dailyScore,
+          dailyAssessments: g.dailyAssessments,
           midtermScore,
           finalExamScore,
           finalScore,
@@ -429,7 +448,8 @@ export const saveClassSetting = mutation({
     principalNiy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await requireAuthenticatedUser(ctx)
+    const identity = await ctx.auth.getUserIdentity()
+    const userName = identity?.name ?? "Pengajar"
     const now = Date.now()
 
     const existing = await ctx.db
@@ -449,7 +469,7 @@ export const saveClassSetting = mutation({
         reportDate: args.reportDate.trim(),
         principalName: args.principalName?.trim(),
         principalNiy: args.principalNiy?.trim(),
-        updatedBy: user.name,
+        updatedBy: userName,
         updatedAt: now,
       })
       return existing._id
@@ -464,7 +484,7 @@ export const saveClassSetting = mutation({
       reportDate: args.reportDate.trim(),
       principalName: args.principalName?.trim(),
       principalNiy: args.principalNiy?.trim(),
-      updatedBy: user.name,
+      updatedBy: userName,
       createdAt: now,
       updatedAt: now,
     })
@@ -481,11 +501,15 @@ export const batchApplyDateAndPrincipal = mutation({
     classNames: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await requireAuthenticatedUser(ctx)
+    const identity = await ctx.auth.getUserIdentity()
+    const userName = identity?.name ?? "Pengajar"
     const now = Date.now()
 
     let count = 0
     for (const className of args.classNames) {
+      const norm = normalizeClassName(className)
+      const defaultHomeroom = getDefaultHomeroomForClass(className)
+
       const existing = await ctx.db
         .query("classSettings")
         .withIndex("by_class_and_period", (q) =>
@@ -497,11 +521,22 @@ export const batchApplyDateAndPrincipal = mutation({
         .first()
 
       if (existing) {
+        // Jika nama wali kelas yang tersimpan masih dummy Muhammad Yasser di rombel selain 9A,
+        // perbaiki otomatis ke wali kelas aslinya
+        const shouldFixHomeroom =
+          existing.homeroomTeacherName === "Muhammad Yasser, S.Pd." && norm !== "9A"
+
         await ctx.db.patch(existing._id, {
           reportDate: args.reportDate.trim(),
           ...(args.principalName !== undefined ? { principalName: args.principalName.trim() } : {}),
           ...(args.principalNiy !== undefined ? { principalNiy: args.principalNiy.trim() } : {}),
-          updatedBy: user.name,
+          ...(shouldFixHomeroom
+            ? {
+                homeroomTeacherName: defaultHomeroom.name,
+                homeroomTeacherNiy: defaultHomeroom.niy,
+              }
+            : {}),
+          updatedBy: userName,
           updatedAt: now,
         })
       } else {
@@ -509,12 +544,12 @@ export const batchApplyDateAndPrincipal = mutation({
           className,
           academicYear: args.academicYear,
           semester: args.semester,
-          homeroomTeacherName: "Muhammad Yasser, S.Pd.",
-          homeroomTeacherNiy: "199512310120191027",
+          homeroomTeacherName: defaultHomeroom.name,
+          homeroomTeacherNiy: defaultHomeroom.niy,
           reportDate: args.reportDate.trim(),
           principalName: args.principalName?.trim() || "Meditoma, S.Pd.",
           principalNiy: args.principalNiy?.trim() || "199405220720181024",
-          updatedBy: user.name,
+          updatedBy: userName,
           createdAt: now,
           updatedAt: now,
         })
@@ -523,5 +558,53 @@ export const batchApplyDateAndPrincipal = mutation({
     }
 
     return { updatedCount: count }
+  },
+})
+
+export const resetClassHomeroomToDefault = mutation({
+  args: {
+    className: v.string(),
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    const userName = identity?.name ?? "Pengajar"
+    const now = Date.now()
+    const defaultHomeroom = getDefaultHomeroomForClass(args.className)
+
+    const existing = await ctx.db
+      .query("classSettings")
+      .withIndex("by_class_and_period", (q) =>
+        q
+          .eq("className", args.className)
+          .eq("academicYear", args.academicYear)
+          .eq("semester", args.semester)
+      )
+      .first()
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        homeroomTeacherName: defaultHomeroom.name,
+        homeroomTeacherNiy: defaultHomeroom.niy,
+        updatedBy: userName,
+        updatedAt: now,
+      })
+      return existing._id
+    }
+
+    return await ctx.db.insert("classSettings", {
+      className: args.className,
+      academicYear: args.academicYear,
+      semester: args.semester,
+      homeroomTeacherName: defaultHomeroom.name,
+      homeroomTeacherNiy: defaultHomeroom.niy,
+      reportDate: "Pangkalpinang, 19 Desember 2025",
+      principalName: "Meditoma, S.Pd.",
+      principalNiy: "199405220720181024",
+      updatedBy: userName,
+      createdAt: now,
+      updatedAt: now,
+    })
   },
 })
