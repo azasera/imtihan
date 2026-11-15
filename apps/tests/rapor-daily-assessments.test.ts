@@ -117,4 +117,28 @@ describe("Integrasi Alur Buku Nilai Harian Guru (PH 1-4 & Tugas)", () => {
       "Skema harus memuat array tasks"
     )
   })
+
+  it("memastikan DailyAssessmentsModal menerapkan dialog lebar dan sticky columns untuk ergonomi tabel santri", () => {
+    const baseDir = process.cwd().endsWith("apps") ? process.cwd() : path.join(process.cwd(), "apps")
+    const modalPath = path.resolve(baseDir, "components/rapor/DailyAssessmentsModal.tsx")
+    const content = fs.readFileSync(modalPath, "utf-8")
+
+    // Memastikan kelas dialog responsif lebar diterapkan untuk menimpa sm:max-w-sm bawaan dialog
+    assert.ok(
+      content.includes("sm:max-w-[96vw]") || content.includes("md:max-w-[95vw]"),
+      "Modal harus menggunakan kelas dialog lebar agar tidak terpasung pada lebar sempit"
+    )
+
+    // Memastikan freeze panes / sticky columns pada No dan Daftar Santri
+    assert.ok(
+      content.includes("sticky left-0") && content.includes("sticky left-12"),
+      "Kolom nomor dan daftar santri harus berposisi sticky di kiri agar tetap terlihat saat scroll horizontal"
+    )
+
+    // Memastikan spin buttons bawaan browser dimatikan agar rapi
+    assert.ok(
+      content.includes("[appearance:textfield]"),
+      "Input angka harus menonaktifkan spin button bawaan agar tampilan rapi"
+    )
+  })
 })
