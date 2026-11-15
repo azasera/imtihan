@@ -958,17 +958,20 @@ export default function RaporPage() {
                   <th className="p-2 w-10 text-center">No</th>
                   <th className="p-2 w-28">NISN</th>
                   <th className="p-2 min-w-40">Nama Santri</th>
-                  <th className="p-2 w-28 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <span>PH / Tugas</span>
+                  <th className="p-2 w-36 text-center bg-emerald-500/[0.04] border-x border-emerald-500/20">
+                    <div className="flex flex-col items-center justify-center gap-1">
                       <button
                         type="button"
-                        title="Buka Buku Nilai Harian (PH & Tugas)"
                         onClick={() => setIsDailyAssessmentsModalOpen(true)}
-                        className="p-1 rounded hover:bg-muted text-emerald-700 dark:text-emerald-400"
+                        className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/70 dark:hover:bg-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition-all cursor-pointer shadow-xs group active:scale-95"
+                        title="Klik untuk membuka Buku Nilai Harian (Input PH 1-4 & Tugas)"
                       >
-                        <BookOpenIcon className="size-3.5" />
+                        <BookOpenIcon className="size-3.5 text-emerald-700 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
+                        <span className="font-bold text-xs tracking-tight">PH / Tugas</span>
                       </button>
+                      <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 font-medium">
+                        Klik untuk rincian
+                      </span>
                     </div>
                   </th>
                   <th className="p-2 w-20 text-center">STS (PTS)</th>
@@ -1010,22 +1013,33 @@ export default function RaporPage() {
                       <td className="p-2 text-center text-muted-foreground">{idx + 1}</td>
                       <td className="p-2 font-mono text-[11px]">{g.nisn}</td>
                       <td className="p-2 font-medium">{g.studentName}</td>
-                      <td className="p-1.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
+                      <td className="p-1.5 text-center bg-emerald-500/[0.02] border-x border-emerald-500/10">
+                        <div className="flex items-center justify-center gap-1.5">
                           <Input
                             type="number"
                             value={g.dailyScore || ""}
                             onChange={(e) => handleScoreChange(g.santriId, "dailyScore", parseFloat(e.target.value))}
                             className="h-7 text-center text-xs font-semibold p-1 w-16"
                           />
-                          {g.dailyAssessments?.ph && g.dailyAssessments.ph.length > 0 && (
-                            <span
-                              title="Memiliki rincian asesmen PH"
-                              className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded cursor-pointer"
+                          {g.dailyAssessments?.ph && g.dailyAssessments.ph.length > 0 ? (
+                            <button
+                              type="button"
+                              title="Buka Buku Nilai Harian untuk mengedit rincian nilai santri ini"
                               onClick={() => setIsDailyAssessmentsModalOpen(true)}
+                              className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:hover:bg-emerald-900 border border-emerald-300 dark:border-emerald-700 px-1.5 py-0.5 rounded shadow-xs cursor-pointer transition-all hover:scale-105 active:scale-95"
                             >
-                              PH
-                            </span>
+                              <span>PH</span>
+                              <BookOpenIcon className="size-2.5 opacity-80" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              title="Buka Buku Nilai Harian untuk mengisi rincian PH 1-4 & Tugas"
+                              onClick={() => setIsDailyAssessmentsModalOpen(true)}
+                              className="inline-flex items-center justify-center size-6 rounded text-[11px] font-medium text-muted-foreground/60 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-dashed border-border hover:border-emerald-400 transition-all cursor-pointer"
+                            >
+                              <BookOpenIcon className="size-3" />
+                            </button>
                           )}
                         </div>
                       </td>
