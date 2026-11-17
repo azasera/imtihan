@@ -1018,6 +1018,7 @@ export default function RaporPage() {
                     <div className="flex flex-col items-center justify-center gap-1">
                       <button
                         type="button"
+                        suppressHydrationWarning
                         onClick={() => setIsDailyAssessmentsModalOpen(true)}
                         className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/70 dark:hover:bg-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 transition-all cursor-pointer shadow-xs group active:scale-95"
                         title="Klik untuk membuka Buku Nilai Harian (Input PH 1-4 & Tugas)"
@@ -1138,6 +1139,7 @@ export default function RaporPage() {
                           {g.isManualFinalScore && (
                             <button
                               type="button"
+                              suppressHydrationWarning
                               onClick={() => handleResetFinalScore(g.santriId)}
                               className="size-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
                               title={`Kembalikan ke kalkulasi rumus otomatis (${g.calculatedNar})`}

@@ -86,6 +86,21 @@ describe("Hydration Safety & Browser Extension Attribute Protection", () => {
     )
   })
 
+  it("confirms root layout html, head, and body have suppressHydrationWarning enabled", () => {
+    const layoutPath = path.join(APPS_ROOT, "app", "layout.tsx")
+    assert.ok(fs.existsSync(layoutPath), "app/layout.tsx must exist")
+    const content = fs.readFileSync(layoutPath, "utf-8")
+
+    assert.ok(
+      content.includes("suppressHydrationWarning"),
+      "Root layout html must have suppressHydrationWarning"
+    )
+    assert.ok(
+      content.includes("<body suppressHydrationWarning>"),
+      "Root layout body must have suppressHydrationWarning"
+    )
+  })
+
   it("ensures zero technical specification leaks in modified components", () => {
     const filesToTest = [
       path.join(APPS_ROOT, "components", "ui", "input.tsx"),

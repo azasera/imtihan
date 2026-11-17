@@ -289,13 +289,13 @@ export function ReportCardPrintView({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", textAlign: "center" }}>
               <div style={{ width: "180px" }}>
                 <p style={{ margin: 0 }}>Mengetahui<br />Orangtua/Wali,</p>
-                <div style={{ height: "46px" }} />
+                <div style={{ height: "46px" }}></div>
                 <p style={{ margin: 0 }}>......................</p>
               </div>
 
               <div style={{ width: "240px", textAlign: "center" }}>
                 <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
-                <div style={{ height: "46px" }} />
+                <div style={{ height: "46px" }}></div>
                 <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
                 <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(homeroomTeacherNiy)}</p>
               </div>
@@ -303,7 +303,7 @@ export function ReportCardPrintView({
 
             <div style={{ textAlign: "center", marginTop: "16px" }}>
               <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
-              <div style={{ height: "46px" }} />
+              <div style={{ height: "46px" }}></div>
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
               <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(principalNiy)}</p>
             </div>
@@ -668,13 +668,13 @@ export function ReportCardPrintView({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", textAlign: "center" }}>
               <div style={{ width: "180px" }}>
                 <p style={{ margin: 0 }}>Mengetahui<br />Orangtua/Wali,</p>
-                <div style={{ height: "46px" }} />
+                <div style={{ height: "46px" }}></div>
                 <p style={{ margin: 0 }}>......................</p>
               </div>
 
               <div style={{ width: "240px", textAlign: "center" }}>
                 <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
-                <div style={{ height: "46px" }} />
+                <div style={{ height: "46px" }}></div>
                 <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
                 <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(homeroomTeacherNiy)}</p>
               </div>
@@ -682,7 +682,7 @@ export function ReportCardPrintView({
 
             <div style={{ textAlign: "center", marginTop: "16px" }}>
               <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
-              <div style={{ height: "46px" }} />
+              <div style={{ height: "46px" }}></div>
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
               <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(principalNiy)}</p>
             </div>
@@ -903,13 +903,13 @@ export function ReportCardPrintView({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", textAlign: "center" }}>
             <div style={{ width: "180px" }}>
               <p style={{ margin: 0 }}>Mengetahui<br />Orangtua/Wali,</p>
-              <div style={{ height: "46px" }} />
+              <div style={{ height: "46px" }}></div>
               <p style={{ margin: 0 }}>......................</p>
             </div>
 
             <div style={{ width: "240px", textAlign: "center" }}>
               <p style={{ margin: 0 }}>{reportDate}<br />Guru Kelas {student.kelas},</p>
-              <div style={{ height: "46px" }} />
+              <div style={{ height: "46px" }}></div>
               <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{homeroomTeacherName}</p>
               <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(homeroomTeacherNiy)}</p>
             </div>
@@ -917,7 +917,7 @@ export function ReportCardPrintView({
 
           <div style={{ textAlign: "center", marginTop: "16px" }}>
             <p style={{ margin: 0 }}>Mengetahui<br />Kepala Sekolah,</p>
-            <div style={{ height: "46px" }} />
+            <div style={{ height: "46px" }}></div>
             <p style={{ margin: 0, fontWeight: "bold", textDecoration: "underline" }}>{principalName}</p>
             <p style={{ margin: "2px 0 0 0" }}>{formatNiyLabel(principalNiy)}</p>
           </div>

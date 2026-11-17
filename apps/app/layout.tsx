@@ -45,7 +45,7 @@ export default async function RootLayout({
         jetbrainsMonoHeading.variable
       )}
     >
-      <head>
+      <head suppressHydrationWarning>
         <script
           dangerouslySetInnerHTML={{
             __html:
@@ -53,7 +53,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <ThemeProvider>
           <TooltipProvider>
             <ConvexClientProvider initialToken={initialToken}>
