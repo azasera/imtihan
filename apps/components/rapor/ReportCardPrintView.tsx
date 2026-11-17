@@ -179,9 +179,6 @@ export function ReportCardPrintView({
             >
               SUMATIF TENGAH SEMESTER
             </h3>
-            <p style={{ fontSize: "10px", margin: "2px 0 0 0", color: "#4b5563" }}>
-              Laporan Hasil Sumatif Tengah Semester — Kurikulum Merdeka
-            </p>
           </div>
 
           {/* Identitas Santri 2 Kolom Rapi */}
@@ -361,9 +358,6 @@ export function ReportCardPrintView({
             >
               SUMATIF AKHIR SEMESTER
             </h3>
-            <p style={{ fontSize: "10px", margin: "2px 0 0 0", color: "#4b5563" }}>
-              Laporan Hasil Sumatif Akhir Semester — Kurikulum Merdeka
-            </p>
           </div>
 
           {/* Identitas Santri 2 Kolom Rapi */}
@@ -742,9 +736,6 @@ export function ReportCardPrintView({
           >
             MATA PELAJARAN DINIYAH
           </h3>
-          <p style={{ fontSize: "10px", margin: "2px 0 0 0", color: "#4b5563" }}>
-            Laporan Hasil Sumatif Diniyah & Tahfidz — Kurikulum Kepesantrenan At-Tauhid
-          </p>
         </div>
 
         {/* Identitas Santri 2 Kolom Ringkas Rapi */}

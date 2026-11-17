@@ -42,15 +42,17 @@ describe("Komponen & Tampilan E-Rapor At-Tauhid", () => {
     )
 
     // Format umum
-    assert.match(printViewSource, /Laporan Hasil Sumatif Akhir Semester/)
-    assert.match(printViewSource, /Laporan Hasil Sumatif Tengah Semester/)
-    assert.match(printViewSource, /Kurikulum Merdeka/)
+    assert.match(printViewSource, /PENCAPAIAN KOMPETENSI MURID/)
+    assert.match(printViewSource, /SUMATIF TENGAH SEMESTER/)
+    assert.match(printViewSource, /SUMATIF AKHIR SEMESTER/)
     assert.match(printViewSource, /Penguatan Karakter Profil Pelajar Pancasila/)
+    assert.doesNotMatch(printViewSource, /Kurikulum Merdeka/)
 
     // Format diniyah & tahfidz
-    assert.match(printViewSource, /Laporan Hasil Sumatif Diniyah & Tahfidz/)
-    assert.match(printViewSource, /Kurikulum Kepesantrenan At-Tauhid/)
+    assert.match(printViewSource, /MATA PELAJARAN DINIYAH/)
     assert.match(printViewSource, /Hadits Arba['']in/)
+    assert.doesNotMatch(printViewSource, /Laporan Hasil Sumatif Diniyah & Tahfidz/)
+    assert.doesNotMatch(printViewSource, /Kurikulum Kepesantrenan At-Tauhid/)
 
     // Dukungan periode STS dan SAS
     assert.match(printViewSource, /period === "STS"/)

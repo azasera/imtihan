@@ -150,7 +150,11 @@ export const saveSubjectGrades = mutation({
       const dailyScore = typeof g.dailyScore === "number" && !isNaN(g.dailyScore) ? g.dailyScore : 0
       const midtermScore = typeof g.midtermScore === "number" && !isNaN(g.midtermScore) ? g.midtermScore : 0
       const finalExamScore = typeof g.finalExamScore === "number" && !isNaN(g.finalExamScore) ? g.finalExamScore : 0
-      const finalScore = calculateNAR(dailyScore, midtermScore, finalExamScore)
+      const calculatedNar = calculateNAR(dailyScore, midtermScore, finalExamScore)
+      const finalScore =
+        typeof g.finalScore === "number" && !isNaN(g.finalScore)
+          ? g.finalScore
+          : calculatedNar
       const predicate = getGradePredicate(finalScore)
       const competencyNarrative = g.competencyNarrative ?? ""
 

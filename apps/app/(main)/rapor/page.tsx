@@ -15,6 +15,7 @@ import {
   ArrowRightIcon,
   SaveIcon,
   RefreshCwIcon,
+  RotateCcwIcon,
   FileSpreadsheetIcon,
   SlidersHorizontal,
 } from "lucide-react"
@@ -65,6 +66,8 @@ interface GradeOverride {
   dailyAssessments?: DailyAssessments
   midtermScore?: number
   finalExamScore?: number
+  finalScore?: number
+  isManualFinalScore?: boolean
   competencyNarrative?: string
 }
 
@@ -246,7 +249,32 @@ export default function RaporPage() {
         ov?.dailyAssessments !== undefined ? ov.dailyAssessments : (g as any).dailyAssessments
       const midtermScore = ov?.midtermScore !== undefined ? ov.midtermScore : g.midtermScore
       const finalExamScore = ov?.finalExamScore !== undefined ? ov.finalExamScore : g.finalExamScore
-      const finalScore = calculateNAR(dailyScore, midtermScore, finalExamScore)
+      const calculatedNar = calculateNAR(dailyScore, midtermScore, finalExamScore)
+      const hasComponentOverride =
+        ov?.dailyScore !== undefined ||
+        ov?.midtermScore !== undefined ||
+        ov?.finalExamScore !== undefined
+
+      let finalScore: number
+      let isManualFinalScore: boolean
+
+      if (ov?.isManualFinalScore !== undefined) {
+        isManualFinalScore = ov.isManualFinalScore
+        finalScore = ov.finalScore ?? calculatedNar
+      } else if (ov?.finalScore !== undefined) {
+        isManualFinalScore = ov.finalScore !== calculatedNar
+        finalScore = ov.finalScore
+      } else if (hasComponentOverride) {
+        isManualFinalScore = false
+        finalScore = calculatedNar
+      } else if (typeof g.finalScore === "number" && g.finalScore > 0 && g.finalScore !== calculatedNar) {
+        isManualFinalScore = true
+        finalScore = g.finalScore
+      } else {
+        isManualFinalScore = false
+        finalScore = calculatedNar
+      }
+
       const predicate = getGradePredicate(finalScore)
       const competencyNarrative =
         ov?.competencyNarrative !== undefined ? ov.competencyNarrative : g.competencyNarrative
@@ -261,6 +289,8 @@ export default function RaporPage() {
         midtermScore,
         finalExamScore,
         finalScore,
+        calculatedNar,
+        isManualFinalScore,
         predicate,
         competencyNarrative,
       }
@@ -334,27 +364,53 @@ export default function RaporPage() {
 
   const handleScoreChange = (
     santriId: string,
-    field: "dailyScore" | "midtermScore" | "finalExamScore",
+    field: "dailyScore" | "midtermScore" | "finalExamScore" | "finalScore",
     value: number
   ) => {
-    const numericVal = isNaN(value) ? 0 : value
+    const rawVal = isNaN(value) ? 0 : value
+    const numericVal = Math.max(0, Math.min(100, Math.round(rawVal)))
     const currentGrade = editableGrades.find((g) => g.santriId === santriId)
     const daily = field === "dailyScore" ? numericVal : (gradeOverrides[santriId]?.dailyScore ?? currentGrade?.dailyScore ?? 0)
     const midterm = field === "midtermScore" ? numericVal : (gradeOverrides[santriId]?.midtermScore ?? currentGrade?.midtermScore ?? 0)
     const finalExam = field === "finalExamScore" ? numericVal : (gradeOverrides[santriId]?.finalExamScore ?? currentGrade?.finalExamScore ?? 0)
     const calculatedNar = calculateNAR(daily, midterm, finalExam)
 
+    const isManualFinal = field === "finalScore"
+    const effectiveFinal = isManualFinal ? numericVal : calculatedNar
+
     const cp = currentCp.trim() || getDefaultCpForSubject(selectedSubject)
-    const autoNarrative = generateCompetencyNarrative(calculatedNar, cp)
+    const autoNarrative = generateCompetencyNarrative(effectiveFinal, cp)
 
     setGradeOverrides((prev) => ({
       ...prev,
       [santriId]: {
         ...prev[santriId],
         [field]: numericVal,
+        ...(isManualFinal
+          ? { finalScore: numericVal, isManualFinalScore: true }
+          : { finalScore: calculatedNar, isManualFinalScore: false }),
         competencyNarrative: autoNarrative,
       },
     }))
+  }
+
+  const handleResetFinalScore = (santriId: string) => {
+    const currentGrade = editableGrades.find((g) => g.santriId === santriId)
+    if (!currentGrade) return
+    const calculated = currentGrade.calculatedNar
+    const cp = currentCp.trim() || getDefaultCpForSubject(selectedSubject)
+    const autoNarrative = generateCompetencyNarrative(calculated, cp)
+
+    setGradeOverrides((prev) => ({
+      ...prev,
+      [santriId]: {
+        ...prev[santriId],
+        finalScore: calculated,
+        isManualFinalScore: false,
+        competencyNarrative: autoNarrative,
+      },
+    }))
+    toast.success(`Nilai akhir ${currentGrade.studentName} dikembalikan ke kalkulasi rumus otomatis (${calculated})`)
   }
 
   const handleNarrativeChange = (santriId: string, text: string) => {
@@ -976,7 +1032,7 @@ export default function RaporPage() {
                   </th>
                   <th className="p-2 w-20 text-center">STS (PTS)</th>
                   <th className="p-2 w-20 text-center">SAS (PAS)</th>
-                  <th className="p-2 w-20 text-center">Nilai Akhir</th>
+                  <th className="p-2 w-28 text-center">Nilai Akhir</th>
                   <th className="p-2 w-16 text-center">Predikat</th>
                   <th className="p-2 min-w-64">Narasi Capaian Kompetensi</th>
                 </tr>
@@ -1059,8 +1115,37 @@ export default function RaporPage() {
                           className="h-7 text-center text-xs font-semibold p-1"
                         />
                       </td>
-                      <td className="p-2 text-center font-bold text-sm text-foreground">
-                        {g.finalScore}
+                      <td className="p-1.5 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={g.finalScore || ""}
+                            onChange={(e) => handleScoreChange(g.santriId, "finalScore", parseFloat(e.target.value))}
+                            className={cn(
+                              "h-7 w-16 text-center text-xs font-bold p-1 transition-colors",
+                              g.isManualFinalScore
+                                ? "border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                                : "text-foreground font-bold"
+                            )}
+                            title={
+                              g.isManualFinalScore
+                                ? `Nilai manual override (Kalkulasi rumus: ${g.calculatedNar}). Klik tombol reset di samping untuk kembali ke otomatis.`
+                                : "Kalkulasi otomatis (2*PH + STS + SAS) / 4. Anda juga bisa mengetik langsung nilai manual."
+                            }
+                          />
+                          {g.isManualFinalScore && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetFinalScore(g.santriId)}
+                              className="size-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+                              title={`Kembalikan ke kalkulasi rumus otomatis (${g.calculatedNar})`}
+                            >
+                              <RotateCcwIcon className="size-3" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="p-2 text-center">
                         <Badge
