@@ -131,6 +131,11 @@ export function ReportCardPrintView({
     return "-"
   }
 
+  const formatReportScore = (score: number) => {
+    if (typeof score !== "number" || isNaN(score)) return score
+    return Math.round(score)
+  }
+
   // 1. Rapor KURMER PTS (1 Halaman)
   if (type === "umum" && period === "STS") {
     return (
@@ -269,7 +274,7 @@ export function ReportCardPrintView({
                   <tr key={g.subjectCode}>
                     <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center" }}>{idx + 1}</td>
                     <td style={{ border: "1px solid #000000", padding: "4px 6px", fontWeight: "bold" }}>{g.subjectName}</td>
-                    <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center", fontWeight: "bold" }}>{g.finalScore}</td>
+                    <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center", fontWeight: "bold" }}>{formatReportScore(g.finalScore)}</td>
                     <td style={{ border: "1px solid #000000", padding: "4px 6px", lineHeight: "1.35", color: "#000000" }}>
                       {getDisplayNarrative(g)}
                     </td>
@@ -448,7 +453,7 @@ export function ReportCardPrintView({
                   <tr key={g.subjectCode}>
                     <td style={{ border: "1px solid #000000", padding: "3.5px 4px", textAlign: "center" }}>{idx + 1}</td>
                     <td style={{ border: "1px solid #000000", padding: "3.5px 6px", fontWeight: "bold" }}>{g.subjectName}</td>
-                    <td style={{ border: "1px solid #000000", padding: "3.5px 4px", textAlign: "center", fontWeight: "bold" }}>{g.finalScore}</td>
+                    <td style={{ border: "1px solid #000000", padding: "3.5px 4px", textAlign: "center", fontWeight: "bold" }}>{formatReportScore(g.finalScore)}</td>
                     <td style={{ border: "1px solid #000000", padding: "3.5px 6px", lineHeight: "1.3", color: "#000000" }}>
                       {getDisplayNarrative(g)}
                     </td>
@@ -831,7 +836,7 @@ export function ReportCardPrintView({
                   <tr key={g.subjectCode}>
                     <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center" }}>{idx + 1}</td>
                     <td style={{ border: "1px solid #000000", padding: "4px 6px", fontWeight: "bold" }}>{g.subjectName}</td>
-                    <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center", fontWeight: "bold" }}>{g.finalScore}</td>
+                    <td style={{ border: "1px solid #000000", padding: "4px", textAlign: "center", fontWeight: "bold" }}>{formatReportScore(g.finalScore)}</td>
                     <td style={{ border: "1px solid #000000", padding: "4px 6px", lineHeight: "1.35", color: "#000000" }}>
                       {getDisplayNarrative(g)}
                     </td>

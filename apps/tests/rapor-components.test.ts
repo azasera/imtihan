@@ -59,6 +59,31 @@ describe("Komponen & Tampilan E-Rapor At-Tauhid", () => {
     assert.match(printViewSource, /period === "SAS"/)
   })
 
+  it("memastikan nilai akhir pada lembar cetak rapor dibulatkan menjadi angka bulat", () => {
+    const printViewSource = fs.readFileSync(
+      path.join(APPS_ROOT, "components/rapor/ReportCardPrintView.tsx"),
+      "utf8"
+    )
+
+    // Memastikan fungsi formatReportScore tersedia dan menggunakan Math.round
+    assert.match(printViewSource, /const formatReportScore =/)
+    assert.match(printViewSource, /Math\.round\(score\)/)
+
+    // Memastikan pemanggilan formatReportScore pada sel Nilai Akhir
+    assert.match(printViewSource, /\{formatReportScore\(g\.finalScore\)\}/)
+
+    // Verifikasi logika pembulatan angka desimal (e.g. 43.5 -> 44, 87 -> 87)
+    const formatScore = (score: number) => {
+      if (typeof score !== "number" || isNaN(score)) return score
+      return Math.round(score)
+    }
+
+    assert.equal(formatScore(43.5), 44, "43.5 harus dibulatkan ke 44")
+    assert.equal(formatScore(87), 87, "87 tetap 87")
+    assert.equal(formatScore(78.25), 78, "78.25 harus dibulatkan ke 78")
+    assert.equal(formatScore(78.75), 79, "78.75 harus dibulatkan ke 79")
+  })
+
   it("memastikan modul unduh PDF & ZIP rapor tersedia dengan fungsi ekspor lengkap", () => {
     const pdfLibPath = path.join(APPS_ROOT, "lib/rapor-pdf.ts")
     assert.equal(fs.existsSync(pdfLibPath), true, "lib/rapor-pdf.ts harus ada")
