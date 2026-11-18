@@ -40,6 +40,7 @@ interface VerifiedSession {
   totalQuestions?: number
   randomizeQuestions?: boolean
   randomizeOptions?: boolean
+  isAlreadySubmitted?: boolean
 }
 
 interface ParticipantSession {
@@ -61,24 +62,47 @@ const BAD_CHARS = /[^ABCDEFGHJKMNPQRSTUVWXYZ234567890-9]/g
  */
 function cleanErrorMessage(error: unknown, fallback = "Terjadi kesalahan saat memproses data."): string {
   if (!error) return fallback
+
+  // Ekstrak pesan dari objek ConvexError atau properti data
+  if (typeof error === "object" && error !== null) {
+    const errorObj = error as Record<string, unknown>
+    if (typeof errorObj.data === "string" && errorObj.data.trim()) {
+      return errorObj.data.trim()
+    }
+    if (errorObj.data && typeof (errorObj.data as Record<string, unknown>).message === "string") {
+      const msg = ((errorObj.data as Record<string, unknown>).message as string).trim()
+      if (msg) return msg
+    }
+  }
+
   const raw = typeof error === "string" ? error : (error as Error).message || fallback
 
-  // Ekstrak pesan murni setelah 'Uncaught Error:' jika ada
-  const uncaughtMatch = raw.match(/Uncaught Error:\s*([^\n\r]+)/i)
+  // Ekstrak pesan murni setelah 'Uncaught (Error|ConvexError):' jika ada
+  const uncaughtMatch = raw.match(/Uncaught (?:Error|ConvexError):\s*([^\n\r]+)/i)
   if (uncaughtMatch && uncaughtMatch[1]) {
-    return uncaughtMatch[1].replace(/\.?\s*Called by client.*$/i, ".").trim()
+    const extracted = uncaughtMatch[1].replace(/\.?\s*Called by client.*$/i, "").trim()
+    if (extracted && extracted !== ".") {
+      return extracted
+    }
   }
 
   // Bersihkan prefix umum Convex & Server Error
-  return (
-    raw
-      .replace(/^\[CONVEX[^\]]*\]\s*/i, "")
-      .replace(/^\[Request ID:[^\]]*\]\s*/i, "")
-      .replace(/^Server Error\s*/i, "")
-      .replace(/^Error:\s*/i, "")
-      .replace(/\.?\s*Called by client.*$/i, ".")
-      .trim() || fallback
-  )
+  const cleaned = raw
+    .replace(/^\[CONVEX[^\]]*\]\s*/i, "")
+    .replace(/^\[Request ID:[^\]]*\]\s*/i, "")
+    .replace(/^Server Error\b\s*/i, "")
+    .replace(/^Error:\s*/i, "")
+    .replace(/\.?\s*Called by client.*$/i, "")
+    .trim()
+
+  if (!cleaned || cleaned === "." || cleaned.toLowerCase() === "server error") {
+    if (/selesai|mengumpulkan|dua kali|submitted/i.test(raw)) {
+      return "Anda telah menyelesaikan dan mengumpulkan lembar ujian ini. Tidak diperbolehkan mengikuti ujian dua kali pada sesi yang sama. Hubungi pengawas ruang jika Anda memerlukan ujian susulan."
+    }
+    return fallback
+  }
+
+  return cleaned
 }
 
 
@@ -152,11 +176,16 @@ export default function StudentExamEntryPage() {
     return digits.length >= 2 ? digits.slice(-2) : ""
   }, [lookedUpStudent, cleanNisn])
 
-  // Verifikasi token sesi (hanya 6 karakter awal token sesi yang dikirim ke query)
+  // Verifikasi token sesi beserta nomor induk santri
   const sessionVerification = useQuery(
     api.examSession.public.queries.verifySessionToken,
-    cleanToken.length >= 6 ? { token: cleanToken.slice(0, 6) } : "skip"
-  ) as VerifiedSession | undefined
+    cleanToken.length >= 6
+      ? {
+          token: cleanToken.slice(0, 6),
+          identifier: cleanNisn.length >= 3 ? cleanNisn : undefined,
+        }
+      : "skip"
+  ) as (VerifiedSession & { isAlreadySubmitted?: boolean }) | undefined
 
   const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Batasi maksimal 8 karakter (6 token sesi + 2 digit santri)
@@ -232,14 +261,20 @@ export default function StudentExamEntryPage() {
     }
 
     if (sessionVerification && !sessionVerification.valid) {
-      const nextFailed = failedAttempts + 1
+      const isDone = Boolean(sessionVerification.isAlreadySubmitted)
+      const nextFailed = isDone ? failedAttempts : failedAttempts + 1
       setFailedAttempts(nextFailed)
-      const cleanMsg = cleanErrorMessage(sessionVerification.message, "Token ujian tidak valid.")
-      if (nextFailed >= 5) {
+      const cleanMsg = cleanErrorMessage(
+        sessionVerification.message,
+        isDone
+          ? "Anda telah menyelesaikan dan mengumpulkan lembar ujian ini. Tidak diperbolehkan mengikuti ujian dua kali pada sesi yang sama. Hubungi pengawas ruang jika Anda memerlukan ujian susulan."
+          : "Token ujian tidak valid."
+      )
+      if (nextFailed >= 5 && !isDone) {
         setIsLocked(true)
         setSubmitError("Terlalu banyak percobaan. Akses Anda dikunci sementara, hubungi pengawas ruang.")
       } else {
-        setSubmitError(`${cleanMsg} (Sisa percobaan: ${5 - nextFailed})`)
+        setSubmitError(isDone ? cleanMsg : `${cleanMsg} (Sisa percobaan: ${5 - nextFailed})`)
       }
       toast.error(cleanMsg)
       return
@@ -272,15 +307,23 @@ export default function StudentExamEntryPage() {
       setStep(3)
     } catch (err: unknown) {
       const msg = cleanErrorMessage(err, "Gagal masuk ke sesi ujian.")
-      const nextFailed = failedAttempts + 1
+      const isDone =
+        /selesai|mengumpulkan|dua kali|submitted/i.test(msg) ||
+        /selesai|mengumpulkan|dua kali|submitted/i.test(String(err))
+      const nextFailed = isDone ? failedAttempts : failedAttempts + 1
       setFailedAttempts(nextFailed)
-      if (nextFailed >= 5) {
+
+      const finalMsg = isDone
+        ? "Anda telah menyelesaikan dan mengumpulkan lembar ujian ini. Tidak diperbolehkan mengikuti ujian dua kali pada sesi yang sama. Hubungi pengawas ruang jika Anda memerlukan ujian susulan."
+        : msg
+
+      if (nextFailed >= 5 && !isDone) {
         setIsLocked(true)
         setSubmitError("Terlalu banyak percobaan yang gagal. Akses dikunci sementara, hubungi pengawas ruang.")
       } else {
-        setSubmitError(`${msg} (Sisa percobaan: ${5 - nextFailed})`)
+        setSubmitError(isDone ? finalMsg : `${finalMsg} (Sisa percobaan: ${5 - nextFailed})`)
       }
-      toast.error(msg)
+      toast.error(finalMsg)
       setStep(1)
     } finally {
       setIsSubmitting(false)
@@ -309,6 +352,9 @@ export default function StudentExamEntryPage() {
       cleanToken.slice(6, 8) !== expectedStudentDigits
     ) {
       return "2 angka terakhir token tidak cocok dengan nomor induk Anda."
+    }
+    if (sessionVerification?.isAlreadySubmitted) {
+      return "Anda sudah menyelesaikan dan mengumpulkan ujian pada sesi ini."
     }
     if (sessionVerification && !sessionVerification.valid) {
       return cleanErrorMessage(sessionVerification.message, "Token ujian tidak valid.")
@@ -411,6 +457,22 @@ export default function StudentExamEntryPage() {
             >
               <AlertCircleIcon className="size-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
               <div className="leading-relaxed text-[13px] font-medium">{submitError}</div>
+            </div>
+          )}
+
+          {/* Banner Peringatan Ujian Sudah Selesai */}
+          {sessionVerification?.isAlreadySubmitted && !submitError && (
+            <div
+              className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-lg text-sm flex items-start gap-2.5 shadow-2xs"
+              role="alert"
+            >
+              <AlertCircleIcon className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+              <div className="leading-relaxed text-[13px]">
+                <p className="font-semibold text-amber-950 dark:text-amber-100">Ujian Telah Selesai Dikerjakan</p>
+                <p className="mt-0.5 leading-relaxed">
+                  Anda telah mengumpulkan lembar ujian pada sesi ini. Sistem tidak mengizinkan pengerjaan dua kali pada sesi yang sama. Silakan lapor kepada pengawas ruang jika Anda memerlukan ujian susulan.
+                </p>
+              </div>
             </div>
           )}
 

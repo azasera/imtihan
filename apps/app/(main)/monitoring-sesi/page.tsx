@@ -10,6 +10,7 @@ import {
   ClockIcon,
   FileEditIcon,
   GitBranchIcon,
+  HelpCircleIcon,
   LayersIcon,
   ListChecksIcon,
   Loader2Icon,
@@ -365,41 +366,55 @@ export default function MonitoringSesiPage() {
           </p>
         </div>
 
-        {selectedSession && (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <SessionStatusBadge status={selectedSession.status} />
-            <Badge variant="outline" className="text-xs font-mono">
-              {selectedSession.gradeLevel}
-            </Badge>
-            {participants?.some(
-              (participant) =>
-                participant.status === "submitted" && participant.gradingStatus === "graded"
-            ) && (
-              <Link
-                href={`/rekap-nilai/analisis/${selectedSession._id}`}
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "sm",
-                  className: "text-xs gap-1.5",
-                })}
-              >
-                <BarChart3Icon className="size-3.5" />
-                Analisis Butir
-              </Link>
-            )}
-            {selectedSession.status === "ended" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs gap-1.5"
-                onClick={() => setContinuationSource(selectedSession)}
-              >
-                <GitBranchIcon className="size-3.5" />
-                Buat Remedial / Susulan
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Link
+            href="/panduan-pengawas"
+            className={buttonVariants({
+              variant: "outline",
+              size: "sm",
+              className: "text-xs gap-1.5 border-emerald-600/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40",
+            })}
+          >
+            <HelpCircleIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>Panduan Pengawas</span>
+          </Link>
+
+          {selectedSession && (
+            <>
+              <SessionStatusBadge status={selectedSession.status} />
+              <Badge variant="outline" className="text-xs font-mono">
+                {selectedSession.gradeLevel}
+              </Badge>
+              {participants?.some(
+                (participant) =>
+                  participant.status === "submitted" && participant.gradingStatus === "graded"
+              ) && (
+                <Link
+                  href={`/rekap-nilai/analisis/${selectedSession._id}`}
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "sm",
+                    className: "text-xs gap-1.5",
+                  })}
+                >
+                  <BarChart3Icon className="size-3.5" />
+                  Analisis Butir
+                </Link>
+              )}
+              {selectedSession.status === "ended" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs gap-1.5"
+                  onClick={() => setContinuationSource(selectedSession)}
+                >
+                  <GitBranchIcon className="size-3.5" />
+                  Buat Remedial / Susulan
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {!isAuthPending && !authSession?.user && (

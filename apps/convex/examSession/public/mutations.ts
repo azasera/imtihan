@@ -1,4 +1,4 @@
-import { v } from "convex/values"
+import { v, ConvexError } from "convex/values"
 
 import { internal } from "../../_generated/api"
 import type { Id } from "../../_generated/dataModel"
@@ -587,16 +587,16 @@ export const enterExamSession = mutation({
     let verifiedName = cleanStudentName(args.studentName.trim())
 
     if (!cleanNisn) {
-      throw new Error("Nomor Induk Santri (NISN / NIS / ID Santri) wajib diisi.")
+      throw new ConvexError("Nomor Induk Santri (NISN / NIS / ID Santri) wajib diisi.")
     }
 
     if (!verifiedName) {
-      throw new Error("Nama lengkap santri wajib diisi.")
+      throw new ConvexError("Nama lengkap santri wajib diisi.")
     }
 
     // Mendukung token 6 karakter (token dasar) atau 8 karakter (token + 2 digit santri)
     if (rawToken.length !== 6 && rawToken.length !== 8) {
-      throw new Error("Token ujian harus terdiri dari 6 karakter sesi atau 8 karakter (termasuk 2 digit santri).")
+      throw new ConvexError("Token ujian harus terdiri dari 6 karakter sesi atau 8 karakter (termasuk 2 digit santri).")
     }
 
     const cleanToken = rawToken.slice(0, 6)
@@ -608,17 +608,17 @@ export const enterExamSession = mutation({
       .first()
 
     if (!session) {
-      throw new Error(
+      throw new ConvexError(
         "Token ujian tidak berlaku lagi. Minta token terbaru kepada pengawas, lalu ketik ulang token tersebut."
       )
     }
 
     if (session.status === "draft") {
-      throw new Error("Sesi ujian belum diaktifkan oleh pengawas ujian.")
+      throw new ConvexError("Sesi ujian belum diaktifkan oleh pengawas ujian.")
     }
 
     if (session.status === "ended") {
-      throw new Error("Sesi ujian ini telah berakhir dan ditutup oleh pengawas.")
+      throw new ConvexError("Sesi ujian ini telah berakhir dan ditutup oleh pengawas.")
     }
 
     if (session.eligibleNisns !== undefined) {
@@ -626,7 +626,7 @@ export const enterExamSession = mutation({
         (nisn) => normalizeNisn(nisn) === normalizeNisn(cleanNisn)
       )
       if (!allowed) {
-        throw new Error(
+        throw new ConvexError(
           "Sesi ini hanya untuk santri yang dipilih pengajar. Nomor Induk Anda tidak termasuk daftar peserta sesi lanjutan."
         )
       }
@@ -664,7 +664,7 @@ export const enterExamSession = mutation({
       if (found) {
         student = found
       } else if (allStudents.length > 0) {
-        throw new Error(
+        throw new ConvexError(
           "Nomor Induk Santri tidak ditemukan dalam basis data pesantren. Pastikan nomor induk Anda benar atau hubungi pengawas."
         )
       }
@@ -675,7 +675,7 @@ export const enterExamSession = mutation({
     if (student && suppliedDigits !== null) {
       const validDigits = getValidStudentTwoDigits(student)
       if (!validDigits.includes(suppliedDigits)) {
-        throw new Error(
+        throw new ConvexError(
           "2 angka terakhir token tidak cocok dengan nomor induk santri Anda. Pastikan memasukkan 6 huruf token sesi diikuti 2 angka terakhir nomor identitas Anda."
         )
       }
@@ -686,7 +686,7 @@ export const enterExamSession = mutation({
     if (student) {
       // Validasi kesesuaian Lembaga dengan database
       if (args.institution && student.jenjang !== args.institution) {
-        throw new Error(
+        throw new ConvexError(
           `Lembaga yang dipilih (${args.institution}) tidak sesuai dengan data terdaftar santri (${student.jenjang}).`
         )
       }
@@ -696,7 +696,7 @@ export const enterExamSession = mutation({
         const normSelected = finalClass.toLowerCase().replace(/\s+/g, "")
         const normDb = student.kelas.toLowerCase().replace(/\s+/g, "")
         if (normSelected !== normDb && !normDb.includes(normSelected) && !normSelected.includes(normDb)) {
-          throw new Error(
+          throw new ConvexError(
             `Kelas yang dipilih (${finalClass}) tidak sesuai dengan data terdaftar santri (${student.kelas}).`
           )
         }
@@ -709,13 +709,13 @@ export const enterExamSession = mutation({
     } else if (args.institution && finalClass) {
       // Jika database belum tersinkronisasi, validasi format kelas sesuai batasan lembaga resmi
       if (args.institution === "SMPITA" && !/^(kelas\s*)?[7-9]/i.test(finalClass)) {
-        throw new Error("Lembaga SMPITA hanya mencakup kelas 7 sampai kelas 9.")
+        throw new ConvexError("Lembaga SMPITA hanya mencakup kelas 7 sampai kelas 9.")
       }
       if (args.institution === "SMAITA" && !/^(kelas\s*)?(10|11|12)/i.test(finalClass)) {
-        throw new Error("Lembaga SMAITA hanya mencakup kelas 10 sampai kelas 12.")
+        throw new ConvexError("Lembaga SMAITA hanya mencakup kelas 10 sampai kelas 12.")
       }
       if (args.institution === "MTA" && !/^mta\s*[1-6]/i.test(finalClass)) {
-        throw new Error("Lembaga MTA hanya mencakup tingkatan MTA 1 sampai MTA 6.")
+        throw new ConvexError("Lembaga MTA hanya mencakup tingkatan MTA 1 sampai MTA 6.")
       }
     }
 
@@ -733,7 +733,9 @@ export const enterExamSession = mutation({
 
     if (existingParticipant) {
       if (existingParticipant.status === "submitted") {
-        throw new Error("Anda telah menyelesaikan dan mengumpulkan lembar ujian ini sebelumnya.")
+        throw new ConvexError(
+          "Anda telah menyelesaikan dan mengumpulkan lembar ujian ini sebelumnya. Tidak diperbolehkan mengikuti ujian dua kali pada sesi yang sama. Hubungi pengawas ruang jika Anda memerlukan ujian susulan."
+        )
       }
 
       // Lanjutkan kembali sesi pengerjaan santri yang sedang berjalan

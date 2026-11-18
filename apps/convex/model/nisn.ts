@@ -72,7 +72,29 @@ export function getValidStudentTwoDigits(student: {
   nis?: string | null
   santriId?: string | null
 }): string[] {
-  return [extractStudentTwoDigits(student)]
+  const digits = new Set<string>()
+
+  const primary = extractStudentTwoDigits(student)
+  if (primary) {
+    digits.add(primary)
+  }
+
+  const nisnDigits = (student.nisn ?? "").replace(/\D/g, "")
+  if (nisnDigits.length >= 2) {
+    digits.add(nisnDigits.slice(-2))
+  }
+
+  const nisDigits = (student.nis ?? "").replace(/\D/g, "")
+  if (nisDigits.length >= 2) {
+    digits.add(nisDigits.slice(-2))
+  }
+
+  const santriIdDigits = (student.santriId ?? "").replace(/\D/g, "")
+  if (santriIdDigits.length >= 2) {
+    digits.add(santriIdDigits.slice(-2))
+  }
+
+  return digits.size > 0 ? Array.from(digits) : ["00"]
 }
 
 /**

@@ -187,6 +187,25 @@ export const verifySessionToken = query({
           ) || null
       }
 
+      if (student) {
+        const officialNisn = student.nisn ?? student.nis ?? student.santriId
+        const existingParticipant = await ctx.db
+          .query("examParticipants")
+          .withIndex("by_session_and_nisn", (q) =>
+            q.eq("sessionId", session._id).eq("nisn", officialNisn)
+          )
+          .first()
+
+        if (existingParticipant?.status === "submitted") {
+          return {
+            valid: false,
+            isAlreadySubmitted: true,
+            message:
+              "Anda telah menyelesaikan dan mengumpulkan lembar ujian ini. Tidak diperbolehkan mengikuti ujian dua kali pada sesi yang sama. Hubungi pengawas ruang jika Anda memerlukan ujian susulan.",
+          }
+        }
+      }
+
       if (raw.length === 8 && student) {
         const suppliedDigits = raw.slice(6, 8)
         const validDigits = getValidStudentTwoDigits(student)

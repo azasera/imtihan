@@ -29,6 +29,7 @@ import {
   CommandIcon,
   MonitorIcon,
   GraduationCapIcon,
+  HelpCircleIcon,
 } from "lucide-react"
 
 const data = {
@@ -57,6 +58,11 @@ const data = {
       title: "Monitoring Sesi",
       url: "/monitoring-sesi",
       icon: <MonitorIcon />,
+    },
+    {
+      title: "Panduan Pengawas",
+      url: "/panduan-pengawas",
+      icon: <HelpCircleIcon />,
     },
     {
       title: "Rekap Nilai",

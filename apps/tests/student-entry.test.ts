@@ -107,6 +107,41 @@ describe("Student Exam Entry & Verification (TASK-005 & TASK-010)", () => {
     assert.ok(sessionQueries.includes("validDigits.includes(suppliedDigits)"), "verifySessionToken must validate 2 digits")
   })
 
+  it("confirms clear notification and protection when a student attempts to take an exam twice", () => {
+    const mutationsPath = path.join(APPS_ROOT, "convex", "examSession", "public", "mutations.ts")
+    const mutationContent = fs.readFileSync(mutationsPath, "utf-8")
+    assert.ok(
+      mutationContent.includes("existingParticipant.status === \"submitted\""),
+      "Must check if participant status is submitted"
+    )
+    assert.ok(
+      mutationContent.includes("ConvexError"),
+      "Must throw ConvexError to preserve Indonesian message in production"
+    )
+    assert.ok(
+      mutationContent.includes("Tidak diperbolehkan mengikuti ujian dua kali"),
+      "Must provide clear two-times exam warning message"
+    )
+
+    const sessionQueriesPath = path.join(APPS_ROOT, "convex", "examSession", "public", "queries.ts")
+    const sessionQueries = fs.readFileSync(sessionQueriesPath, "utf-8")
+    assert.ok(
+      sessionQueries.includes("isAlreadySubmitted: true"),
+      "verifySessionToken must report isAlreadySubmitted flag"
+    )
+
+    const pagePath = path.join(APPS_ROOT, "app", "ujian", "page.tsx")
+    const pageContent = fs.readFileSync(pagePath, "utf-8")
+    assert.ok(
+      pageContent.includes("isAlreadySubmitted"),
+      "page.tsx must handle isAlreadySubmitted state"
+    )
+    assert.ok(
+      pageContent.includes("Ujian Telah Selesai Dikerjakan") || pageContent.includes("Ujian Telah Diselesaikan"),
+      "page.tsx must display explicit warning banner when exam is already submitted"
+    )
+  })
+
   it("ensures zero technical specification leaks in app/ujian/page.tsx", () => {
     const pagePath = path.join(APPS_ROOT, "app", "ujian", "page.tsx")
     const content = fs.readFileSync(pagePath, "utf-8")
