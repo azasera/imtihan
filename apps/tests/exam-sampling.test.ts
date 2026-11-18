@@ -7,6 +7,8 @@ const {
   calculateNormalizedPgScore,
   calculateNormalizedEssayScore,
   calculateCompositeFinalScore,
+  COMPOSITION_PRESETS,
+  autoBalanceWeights,
 } = (await import(
   new URL("../lib/exam-sampling.ts", import.meta.url).href
 )) as typeof import("../lib/exam-sampling")
@@ -189,6 +191,70 @@ describe("Sistem Sampling Soal & Normalisasi Bobot Kategori (PG 70% & Esai 30%)"
       assert.equal(calculateCompositeFinalScore(70, 30), 100)
       // PG 35.00 + Esai 15.00 -> 50.00
       assert.equal(calculateCompositeFinalScore(35, 15), 50)
+    })
+  })
+
+  describe("Sistem Smart Auto-Balance & Bobot Cerdas", () => {
+    it("menolkan butir esai otomatis memindahkan 100% bobot ke objektif", () => {
+      const res = autoBalanceWeights("essayCount", {
+        pgCount: 25,
+        essayCount: 5,
+        pgWeight: 70,
+        essayWeight: 30,
+      }, 0)
+      assert.equal(res.pgWeight, 100)
+      assert.equal(res.essayWeight, 0)
+    })
+
+    it("menolkan butir objektif otomatis memindahkan 100% bobot ke esai", () => {
+      const res = autoBalanceWeights("pgCount", {
+        pgCount: 20,
+        essayCount: 5,
+        pgWeight: 70,
+        essayWeight: 30,
+      }, 0)
+      assert.equal(res.pgWeight, 0)
+      assert.equal(res.essayWeight, 100)
+    })
+
+    it("mengubah bobot objektif ke 80% otomatis melengkapi esai ke 20%", () => {
+      const res = autoBalanceWeights("pgWeight", {
+        pgCount: 20,
+        essayCount: 5,
+        pgWeight: 70,
+        essayWeight: 30,
+      }, 80)
+      assert.equal(res.pgWeight, 80)
+      assert.equal(res.essayWeight, 20)
+    })
+
+    it("mengubah bobot esai ke 45% otomatis melengkapi objektif ke 55%", () => {
+      const res = autoBalanceWeights("essayWeight", {
+        pgCount: 20,
+        essayCount: 5,
+        pgWeight: 70,
+        essayWeight: 30,
+      }, 45)
+      assert.equal(res.pgWeight, 55)
+      assert.equal(res.essayWeight, 45)
+    })
+
+    it("mengubah bobot esai ke 0% otomatis melengkapi objektif ke 100%", () => {
+      const res = autoBalanceWeights("essayWeight", {
+        pgCount: 25,
+        essayCount: 0,
+        pgWeight: 70,
+        essayWeight: 30,
+      }, 0)
+      assert.equal(res.pgWeight, 100)
+      assert.equal(res.essayWeight, 0)
+    })
+
+    it("COMPOSITION_PRESETS menyediakan 4 preset dan semuanya berjumlah tepat 100%", () => {
+      assert.equal(COMPOSITION_PRESETS.length, 4)
+      for (const p of COMPOSITION_PRESETS) {
+        assert.equal(p.pgWeight + p.essayWeight, 100, `Preset ${p.id} harus total 100%`)
+      }
     })
   })
 })

@@ -19,6 +19,7 @@ import {
   SearchIcon,
   ShieldAlertIcon,
   ShuffleIcon,
+  SlidersHorizontalIcon,
   StopCircleIcon,
   TargetIcon,
   Trash2Icon,
@@ -28,6 +29,7 @@ import { toast } from "sonner"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { authClient } from "@/lib/auth-client"
+import { COMPOSITION_PRESETS } from "@/lib/exam-sampling"
 import { parsePassingScoreInput, sessionKindLabel } from "@/lib/session-continuation"
 import {
   DEFAULT_VIOLATION_THRESHOLD,
@@ -123,6 +125,79 @@ export default function SesiUjianPage() {
     selectedBankDetails?.questions?.filter((q) => q.type !== "essay").length ?? 0
   const availableEssay =
     selectedBankDetails?.questions?.filter((q) => q.type === "essay").length ?? 0
+
+  // Penanganan pembobotan & auto-balance cerdas
+  const handlePgWeightChange = (valStr: string) => {
+    setPgWeightInput(valStr)
+    const val = parseInt(valStr, 10)
+    if (!isNaN(val) && val >= 0 && val <= 100) {
+      setEssayWeightInput(String(100 - val))
+    }
+  }
+
+  const handleEssayWeightChange = (valStr: string) => {
+    setEssayWeightInput(valStr)
+    const val = parseInt(valStr, 10)
+    if (!isNaN(val) && val >= 0 && val <= 100) {
+      setPgWeightInput(String(100 - val))
+    }
+  }
+
+  const handlePgCountChange = (valStr: string) => {
+    setPgCountInput(valStr)
+    const count = parseInt(valStr, 10)
+    if (count === 0) {
+      setPgWeightInput("0")
+      setEssayWeightInput("100")
+    } else if (count > 0 && (parseInt(essayCountInput, 10) || 0) === 0) {
+      setPgWeightInput("100")
+      setEssayWeightInput("0")
+    } else if (count > 0 && (parseInt(pgWeightInput, 10) || 0) === 0) {
+      setPgWeightInput("70")
+      setEssayWeightInput("30")
+    }
+  }
+
+  const handleEssayCountChange = (valStr: string) => {
+    setEssayCountInput(valStr)
+    const count = parseInt(valStr, 10)
+    if (count === 0) {
+      setEssayWeightInput("0")
+      setPgWeightInput("100")
+    } else if (count > 0 && (parseInt(pgCountInput, 10) || 0) === 0) {
+      setEssayWeightInput("100")
+      setPgWeightInput("0")
+    } else if (count > 0 && (parseInt(essayWeightInput, 10) || 0) === 0) {
+      setEssayWeightInput("30")
+      setPgWeightInput("70")
+    }
+  }
+
+  const handleNormalizeWeights = () => {
+    const pg = parseInt(pgWeightInput, 10) || 0
+    const essay = parseInt(essayWeightInput, 10) || 0
+    const pgC = parseInt(pgCountInput, 10) || 0
+    const essayC = parseInt(essayCountInput, 10) || 0
+
+    if (essayC === 0 && pgC > 0) {
+      setPgWeightInput("100")
+      setEssayWeightInput("0")
+      return
+    }
+    if (pgC === 0 && essayC > 0) {
+      setPgWeightInput("0")
+      setEssayWeightInput("100")
+      return
+    }
+    if (pg > 0 && pg <= 100) {
+      setEssayWeightInput(String(100 - pg))
+    } else if (essay > 0 && essay <= 100) {
+      setPgWeightInput(String(100 - essay))
+    } else {
+      setPgWeightInput("70")
+      setEssayWeightInput("30")
+    }
+  }
 
   // State feedback copy token & regenerate
   const [copiedToken, setCopiedToken] = React.useState<string | null>(null)
@@ -584,7 +659,22 @@ export default function SesiUjianPage() {
                   <Switch
                     id="switch-composition"
                     checked={compositionEnabled}
-                    onCheckedChange={(checked) => setCompositionEnabled(checked)}
+                    onCheckedChange={(checked) => {
+                      setCompositionEnabled(checked)
+                      if (checked) {
+                        if (availableEssay === 0 && availablePg > 0) {
+                          setPgCountInput(String(Math.min(25, availablePg)))
+                          setPgWeightInput("100")
+                          setEssayCountInput("0")
+                          setEssayWeightInput("0")
+                        } else if (availableEssay > 0 && availablePg === 0) {
+                          setPgCountInput("0")
+                          setPgWeightInput("0")
+                          setEssayCountInput(String(Math.min(5, availableEssay)))
+                          setEssayWeightInput("100")
+                        }
+                      }
+                    }}
                     className="shrink-0"
                   />
                 </div>
@@ -602,9 +692,100 @@ export default function SesiUjianPage() {
                       </div>
                     ) : null}
 
+                    {/* Preset Komposisi & Bobot Cepat */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                        <SlidersHorizontalIcon className="size-3 text-primary" />
+                        <span>Pilihan Cepat Proporsi &amp; Bobot:</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {COMPOSITION_PRESETS.map((preset) => {
+                          const isObjOnly = preset.id === "obj_only"
+                          const isEssayOnly = preset.id === "essay_only"
+                          const disabled =
+                            (isObjOnly && availablePg === 0) ||
+                            (!isObjOnly && availableEssay === 0) ||
+                            (isEssayOnly && availableEssay === 0)
+                          const isCurrentActive =
+                            (parseInt(pgWeightInput, 10) || 0) === preset.pgWeight &&
+                            (parseInt(essayWeightInput, 10) || 0) === preset.essayWeight
+
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => {
+                                setPgWeightInput(String(preset.pgWeight))
+                                setEssayWeightInput(String(preset.essayWeight))
+                                if (preset.pgWeight === 100) {
+                                  setEssayCountInput("0")
+                                  if ((parseInt(pgCountInput, 10) || 0) === 0) {
+                                    setPgCountInput(String(Math.min(25, availablePg || 25)))
+                                  }
+                                } else if (preset.essayWeight === 100) {
+                                  setPgCountInput("0")
+                                  if ((parseInt(essayCountInput, 10) || 0) === 0) {
+                                    setEssayCountInput(String(Math.min(5, availableEssay || 5)))
+                                  }
+                                } else {
+                                  if ((parseInt(pgCountInput, 10) || 0) === 0) {
+                                    setPgCountInput(String(Math.min(20, availablePg || 20)))
+                                  }
+                                  if ((parseInt(essayCountInput, 10) || 0) === 0) {
+                                    setEssayCountInput(String(Math.min(5, availableEssay || 5)))
+                                  }
+                                }
+                              }}
+                              className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                isCurrentActive
+                                  ? "bg-primary/10 border-primary/50 text-primary font-semibold"
+                                  : "bg-background border-border/70 hover:bg-muted/70 text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Bilah Proporsi Bobot Visual */}
+                    <div className="space-y-1">
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden flex">
+                        <div
+                          style={{ width: `${Math.max(0, Math.min(100, parseInt(pgWeightInput, 10) || 0))}%` }}
+                          className="bg-primary transition-all duration-300"
+                          title={`Objektif: ${parseInt(pgWeightInput, 10) || 0}%`}
+                        />
+                        <div
+                          style={{ width: `${Math.max(0, Math.min(100, parseInt(essayWeightInput, 10) || 0))}%` }}
+                          className="bg-sky-500 transition-all duration-300"
+                          title={`Esai: ${parseInt(essayWeightInput, 10) || 0}%`}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground px-0.5">
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block size-1.5 rounded-full bg-primary" />
+                          Objektif ({parseInt(pgWeightInput, 10) || 0}%)
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block size-1.5 rounded-full bg-sky-500" />
+                          Esai ({parseInt(essayWeightInput, 10) || 0}%)
+                        </span>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="p-2.5 rounded border bg-background/60 space-y-2">
-                        <span className="text-xs font-medium block">Soal Objektif (PG / Benar-Salah)</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium block">Soal Objektif (PG / Benar-Salah)</span>
+                          {availablePg === 0 && (
+                            <Badge variant="outline" className="text-[10px] text-amber-700 dark:text-amber-400 border-amber-500/40">
+                              0 butir di bank
+                            </Badge>
+                          )}
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <Label htmlFor="pg-count-input" className="text-[11px]">Jumlah Butir</Label>
@@ -614,8 +795,9 @@ export default function SesiUjianPage() {
                               min={0}
                               max={availablePg || 500}
                               value={pgCountInput}
-                              onChange={(e) => setPgCountInput(e.target.value)}
+                              onChange={(e) => handlePgCountChange(e.target.value)}
                               className="h-8 text-xs"
+                              disabled={availablePg === 0}
                             />
                           </div>
                           <div className="space-y-1">
@@ -626,7 +808,7 @@ export default function SesiUjianPage() {
                               min={0}
                               max={100}
                               value={pgWeightInput}
-                              onChange={(e) => setPgWeightInput(e.target.value)}
+                              onChange={(e) => handlePgWeightChange(e.target.value)}
                               className="h-8 text-xs"
                             />
                           </div>
@@ -634,7 +816,14 @@ export default function SesiUjianPage() {
                       </div>
 
                       <div className="p-2.5 rounded border bg-background/60 space-y-2">
-                        <span className="text-xs font-medium block">Esai</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium block">Esai</span>
+                          {availableEssay === 0 && (
+                            <Badge variant="outline" className="text-[10px] text-amber-700 dark:text-amber-400 border-amber-500/40">
+                              0 butir di bank
+                            </Badge>
+                          )}
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <Label htmlFor="essay-count-input" className="text-[11px]">Jumlah Butir</Label>
@@ -644,8 +833,9 @@ export default function SesiUjianPage() {
                               min={0}
                               max={availableEssay || 500}
                               value={essayCountInput}
-                              onChange={(e) => setEssayCountInput(e.target.value)}
+                              onChange={(e) => handleEssayCountChange(e.target.value)}
                               className="h-8 text-xs"
+                              disabled={availableEssay === 0}
                             />
                           </div>
                           <div className="space-y-1">
@@ -656,8 +846,9 @@ export default function SesiUjianPage() {
                               min={0}
                               max={100}
                               value={essayWeightInput}
-                              onChange={(e) => setEssayWeightInput(e.target.value)}
+                              onChange={(e) => handleEssayWeightChange(e.target.value)}
                               className="h-8 text-xs"
+                              disabled={availableEssay === 0}
                             />
                           </div>
                         </div>
@@ -666,18 +857,28 @@ export default function SesiUjianPage() {
 
                     <div className="flex items-center justify-between text-xs pt-1">
                       <span className="text-muted-foreground text-[11px]">
-                        Total Diujikan: <strong className="text-foreground">{(parseInt(pgCountInput) || 0) + (parseInt(essayCountInput) || 0)}</strong> butir
+                        Total Diujikan: <strong className="text-foreground">{(parseInt(pgCountInput, 10) || 0) + (parseInt(essayCountInput, 10) || 0)}</strong> butir
                       </span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground text-[11px]">Total Bobot:</span>
-                        {(parseInt(pgWeightInput) || 0) + (parseInt(essayWeightInput) || 0) === 100 ? (
+                        {(parseInt(pgWeightInput, 10) || 0) + (parseInt(essayWeightInput, 10) || 0) === 100 ? (
                           <Badge variant="outline" className="text-emerald-700 dark:text-emerald-400 border-emerald-500/40 text-[11px] py-0">
                             100% Pas
                           </Badge>
                         ) : (
-                          <Badge variant="destructive" className="text-[11px] py-0">
-                            {(parseInt(pgWeightInput) || 0) + (parseInt(essayWeightInput) || 0)}% (Harus 100%)
-                          </Badge>
+                          <div className="flex items-center gap-1">
+                            <Badge variant="destructive" className="text-[11px] py-0">
+                              {(parseInt(pgWeightInput, 10) || 0) + (parseInt(essayWeightInput, 10) || 0)}%
+                            </Badge>
+                            <button
+                              type="button"
+                              onClick={handleNormalizeWeights}
+                              className="text-[11px] text-primary underline hover:text-primary/80 font-medium cursor-pointer"
+                              title="Klik untuk otomatis menggenapkan total bobot ke 100%"
+                            >
+                              Genapkan ke 100%
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

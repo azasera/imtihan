@@ -140,6 +140,76 @@ export function calculateNormalizedEssayScore(
   return Math.round(score * 100) / 100
 }
 
+export interface CompositionPreset {
+  id: string
+  label: string
+  pgWeight: number
+  essayWeight: number
+}
+
+export const COMPOSITION_PRESETS: CompositionPreset[] = [
+  { id: "obj_only", label: "Hanya Objektif (100% : 0%)", pgWeight: 100, essayWeight: 0 },
+  { id: "standard", label: "Standar (70% : 30%)", pgWeight: 70, essayWeight: 30 },
+  { id: "balanced", label: "Seimbang (50% : 50%)", pgWeight: 50, essayWeight: 50 },
+  { id: "essay_only", label: "Hanya Esai (0% : 100%)", pgWeight: 0, essayWeight: 100 },
+]
+
+export interface WeightBalanceResult {
+  pgWeight: number
+  essayWeight: number
+}
+
+/**
+ * Menyeimbangkan bobot antara Objektif (PG/Benar-Salah) dan Esai secara cerdas.
+ * - Jika jumlah butir salah satu model adalah 0, bobotnya otomatis 0% dan pasangannya 100%.
+ * - Jika changedField diubah, model pasangannya otomatis melengkapi sisa 100% (100 - newValue).
+ */
+export function autoBalanceWeights(
+  changedField: "pgWeight" | "essayWeight" | "pgCount" | "essayCount",
+  current: {
+    pgCount: number
+    essayCount: number
+    pgWeight: number
+    essayWeight: number
+  },
+  newValue?: number
+): WeightBalanceResult {
+  const pgCount = changedField === "pgCount" ? (newValue ?? current.pgCount) : current.pgCount
+  const essayCount = changedField === "essayCount" ? (newValue ?? current.essayCount) : current.essayCount
+
+  // Aturan butir nol
+  if (essayCount === 0 && pgCount > 0) {
+    return { pgWeight: 100, essayWeight: 0 }
+  }
+  if (pgCount === 0 && essayCount > 0) {
+    return { pgWeight: 0, essayWeight: 100 }
+  }
+
+  // Jika bobot Objektif diubah
+  if (changedField === "pgWeight") {
+    const val = Math.max(0, Math.min(100, newValue ?? current.pgWeight))
+    return { pgWeight: val, essayWeight: 100 - val }
+  }
+
+  // Jika bobot Esai diubah
+  if (changedField === "essayWeight") {
+    const val = Math.max(0, Math.min(100, newValue ?? current.essayWeight))
+    return { pgWeight: 100 - val, essayWeight: val }
+  }
+
+  // Jika jumlah butir berubah dan keduanya > 0, tapi bobot saat ini tidak berjumlah 100
+  const currentTotal = current.pgWeight + current.essayWeight
+  if (currentTotal !== 100) {
+    if (current.pgWeight > 0 && current.essayWeight === 0) {
+      return { pgWeight: 70, essayWeight: 30 }
+    }
+    const safePg = Math.max(0, Math.min(100, current.pgWeight))
+    return { pgWeight: safePg, essayWeight: 100 - safePg }
+  }
+
+  return { pgWeight: current.pgWeight, essayWeight: current.essayWeight }
+}
+
 /**
  * Mengakumulasi skor PG dan Esai menjadi skor akhir (maksimal 100).
  */
