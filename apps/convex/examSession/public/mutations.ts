@@ -10,10 +10,15 @@ import {
   assertValidPassingScore,
   assertValidTokenRotationMinutes,
   assertValidViolationThreshold,
+  calculateCompositeFinalScore,
+  calculateNormalizedEssayScore,
+  calculateNormalizedPgScore,
   normalizeNisn,
   requireAuthenticatedUser,
+  sampleQuestionsByComposition,
   shouldLockAfterViolation,
   tokenRotationDueAt,
+  validateQuestionComposition,
 } from "../private/helpers"
 import { generateUniqueSessionToken } from "../private/tokenCode"
 
@@ -49,6 +54,15 @@ export const createExamSession = mutation({
     enforcementMode: v.optional(v.union(v.literal("record"), v.literal("lock"))),
     violationThreshold: v.optional(v.number()),
     tokenRotationMinutes: v.optional(v.union(v.number(), v.null())),
+    questionComposition: v.optional(
+      v.object({
+        enabled: v.boolean(),
+        pgCount: v.number(),
+        pgWeight: v.number(),
+        essayCount: v.number(),
+        essayWeight: v.number(),
+      })
+    ),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx)
@@ -64,6 +78,29 @@ export const createExamSession = mutation({
     const bank = await ctx.db.get("questionBanks", args.bankId)
     if (!bank) {
       throw new Error("Paket bank soal yang dipilih tidak ditemukan.")
+    }
+
+    let selectedQuestionIds: Id<"questions">[] | undefined = undefined
+    if (args.questionComposition?.enabled) {
+      const bankQuestions = await ctx.db
+        .query("questions")
+        .withIndex("by_bank", (q) => q.eq("bankId", args.bankId))
+        .collect()
+
+      const totalPgAvailable = bankQuestions.filter((q) => q.type !== "essay").length
+      const totalEssayAvailable = bankQuestions.filter((q) => q.type === "essay").length
+
+      const validation = validateQuestionComposition(
+        args.questionComposition,
+        totalPgAvailable,
+        totalEssayAvailable
+      )
+      if (!validation.valid) {
+        throw new Error(validation.error || "Konfigurasi komposisi soal tidak valid.")
+      }
+
+      const sampled = sampleQuestionsByComposition(bankQuestions, args.questionComposition)
+      selectedQuestionIds = sampled.map((q) => q._id)
     }
 
     // Generate token 6 digit unik
@@ -84,6 +121,8 @@ export const createExamSession = mutation({
       enforcementMode: args.enforcementMode ?? "record",
       violationThreshold: args.violationThreshold ?? 3,
       tokenRotationMinutes: args.tokenRotationMinutes ?? undefined,
+      questionComposition: args.questionComposition,
+      selectedQuestionIds,
       status: "draft",
       creatorTokenIdentifier: user.tokenIdentifier,
       creatorName: user.name,
@@ -239,6 +278,16 @@ export const updateExamSession = mutation({
     randomizeQuestions: v.optional(v.boolean()),
     randomizeOptions: v.optional(v.boolean()),
     tokenRotationMinutes: v.optional(v.union(v.number(), v.null())),
+    questionComposition: v.optional(
+      v.object({
+        enabled: v.boolean(),
+        pgCount: v.number(),
+        pgWeight: v.number(),
+        essayCount: v.number(),
+        essayWeight: v.number(),
+      })
+    ),
+    reShuffleQuestions: v.optional(v.boolean()),
     status: v.optional(v.union(v.literal("draft"), v.literal("active"), v.literal("ended"))),
   },
   handler: async (ctx, args) => {
@@ -274,6 +323,8 @@ export const updateExamSession = mutation({
       randomizeOptions: boolean
       tokenRotationMinutes: number
       tokenRotatedAt: number
+      questionComposition: typeof args.questionComposition
+      selectedQuestionIds: Id<"questions">[] | undefined
       status: "draft" | "active" | "ended"
       updatedAt: number
     }> = {
@@ -288,6 +339,37 @@ export const updateExamSession = mutation({
     if (args.randomizeQuestions !== undefined) updates.randomizeQuestions = args.randomizeQuestions
     if (args.randomizeOptions !== undefined) updates.randomizeOptions = args.randomizeOptions
     if (args.status !== undefined) updates.status = args.status
+
+    if (args.questionComposition !== undefined || args.reShuffleQuestions) {
+      const targetBankId = args.bankId ?? session.bankId
+      const targetComposition = args.questionComposition ?? session.questionComposition
+
+      if (targetComposition?.enabled) {
+        const bankQuestions = await ctx.db
+          .query("questions")
+          .withIndex("by_bank", (q) => q.eq("bankId", targetBankId))
+          .collect()
+
+        const totalPgAvailable = bankQuestions.filter((q) => q.type !== "essay").length
+        const totalEssayAvailable = bankQuestions.filter((q) => q.type === "essay").length
+
+        const validation = validateQuestionComposition(
+          targetComposition,
+          totalPgAvailable,
+          totalEssayAvailable
+        )
+        if (!validation.valid) {
+          throw new Error(validation.error || "Konfigurasi komposisi soal tidak valid.")
+        }
+
+        const sampled = sampleQuestionsByComposition(bankQuestions, targetComposition)
+        updates.selectedQuestionIds = sampled.map((q) => q._id)
+        updates.questionComposition = targetComposition
+      } else {
+        updates.questionComposition = targetComposition
+        updates.selectedQuestionIds = undefined
+      }
+    }
 
     const now = Date.now()
     if (args.tokenRotationMinutes !== undefined) {
@@ -897,6 +979,11 @@ export const submitStudentExam = mutation({
       .withIndex("by_bank", (q) => q.eq("bankId", session.bankId))
       .collect()
 
+    const effectiveQuestions =
+      session.selectedQuestionIds && session.selectedQuestionIds.length > 0
+        ? allQuestions.filter((q) => session.selectedQuestionIds!.includes(q._id))
+        : allQuestions
+
     // Ambil seluruh jawaban yang diinput santri
     const studentAnswers = await ctx.db
       .query("studentAnswers")
@@ -907,20 +994,29 @@ export const submitStudentExam = mutation({
 
     let calculatedPgScore = 0
     let hasEssayQuestions = false
+    const isComposition = !!session.questionComposition?.enabled
+    const objectiveQuestions = effectiveQuestions.filter((q) => q.type !== "essay")
+    const totalPgCount = isComposition
+      ? session.questionComposition!.pgCount
+      : objectiveQuestions.length
+    let correctPgCount = 0
 
     // Koreksi otomatis soal Pilihan Ganda, PG Kompleks, dan Benar/Salah (NILAI-FR-001, NILAI-FR-005)
-    for (const q of allQuestions) {
+    for (const q of effectiveQuestions) {
       const studentAns = answersByQuestionId.get(q._id)
+      let isCorrect = false
       let awarded = 0
 
       if (q.type === "multiple_choice") {
         const correctOption = q.options?.find((opt) => opt.isCorrect)
         if (studentAns && correctOption && studentAns.selectedOptionId === correctOption.id) {
+          isCorrect = true
           awarded = q.points
         }
       } else if (q.type === "true_false") {
         const correctOption = q.options?.find((opt) => opt.isCorrect)
         if (studentAns && correctOption && studentAns.selectedOptionId === correctOption.id) {
+          isCorrect = true
           awarded = q.points
         }
       } else if (q.type === "pg_kompleks") {
@@ -933,13 +1029,25 @@ export const submitStudentExam = mutation({
           selectedIds.size === correctIds.size &&
           [...selectedIds].every((id) => correctIds.has(id))
         ) {
+          isCorrect = true
           awarded = q.points
         }
       } else if (q.type === "essay") {
         hasEssayQuestions = true
       }
 
-      calculatedPgScore += awarded
+      if (isCorrect) {
+        correctPgCount++
+      }
+
+      if (isComposition && q.type !== "essay") {
+        const unitScore = totalPgCount > 0 ? session.questionComposition!.pgWeight / totalPgCount : 0
+        awarded = isCorrect ? Math.round(unitScore * 100) / 100 : 0
+      }
+
+      if (!isComposition) {
+        calculatedPgScore += awarded
+      }
 
       // Catat skor butir soal otomatis ke database
       if (studentAns && q.type !== "essay") {
@@ -947,6 +1055,14 @@ export const submitStudentExam = mutation({
           scoreAwarded: awarded,
         })
       }
+    }
+
+    if (isComposition) {
+      calculatedPgScore = calculateNormalizedPgScore(
+        correctPgCount,
+        totalPgCount,
+        session.questionComposition!.pgWeight
+      )
     }
 
     const now = Date.now()
@@ -1046,7 +1162,12 @@ export const gradeEssayAnswer = mutation({
       .withIndex("by_bank", (q) => q.eq("bankId", session.bankId))
       .collect()
 
-    const essayQuestions = allQuestions.filter((q) => q.type === "essay")
+    const effectiveQuestions =
+      session.selectedQuestionIds && session.selectedQuestionIds.length > 0
+        ? allQuestions.filter((q) => session.selectedQuestionIds!.includes(q._id))
+        : allQuestions
+
+    const essayQuestions = effectiveQuestions.filter((q) => q.type === "essay")
     const allStudentAnswers = await ctx.db
       .query("studentAnswers")
       .withIndex("by_participant", (q) => q.eq("participantId", args.participantId))
@@ -1056,18 +1177,33 @@ export const gradeEssayAnswer = mutation({
 
     let accumulatedEssayScore = 0
     let allEssaysGraded = true
+    let totalRawEssayAwarded = 0
+    let maxPossibleEssayPoints = 0
 
     for (const eq of essayQuestions) {
+      maxPossibleEssayPoints += eq.points
       const sa = studentAnswersMap.get(eq._id)
       if (sa && sa.scoreAwarded !== undefined) {
-        accumulatedEssayScore += sa.scoreAwarded
+        totalRawEssayAwarded += sa.scoreAwarded
       } else {
         allEssaysGraded = false
       }
     }
 
+    if (session.questionComposition?.enabled) {
+      accumulatedEssayScore = calculateNormalizedEssayScore(
+        totalRawEssayAwarded,
+        maxPossibleEssayPoints,
+        session.questionComposition.essayWeight
+      )
+    } else {
+      accumulatedEssayScore = totalRawEssayAwarded
+    }
+
     const pgScore = participant.multipleChoiceScore ?? 0
-    const rawTotalScore = pgScore + accumulatedEssayScore
+    const rawTotalScore = session.questionComposition?.enabled
+      ? calculateCompositeFinalScore(pgScore, accumulatedEssayScore)
+      : pgScore + accumulatedEssayScore
     const finalTotal = applyRemedialCap(session, rawTotalScore)
     const newGradingStatus = allEssaysGraded ? "graded" : "pending_essay"
 

@@ -103,6 +103,16 @@ export default defineSchema({
     violationThreshold: v.optional(v.number()), // Jumlah pelanggaran sebelum lembar terkunci
     tokenRotationMinutes: v.optional(v.number()), // Interval rotasi token; absen berarti tetap sampai diganti
     tokenRotatedAt: v.optional(v.number()), // Waktu token terakhir berganti, dipakai hitung mundur
+    questionComposition: v.optional(
+      v.object({
+        enabled: v.boolean(),
+        pgCount: v.number(),
+        pgWeight: v.number(),
+        essayCount: v.number(),
+        essayWeight: v.number(),
+      })
+    ),
+    selectedQuestionIds: v.optional(v.array(v.id("questions"))),
     status: v.union(v.literal("draft"), v.literal("active"), v.literal("ended")), // Status sesi
     creatorTokenIdentifier: v.string(),
     creatorName: v.optional(v.string()),

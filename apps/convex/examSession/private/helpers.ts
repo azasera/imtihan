@@ -8,6 +8,14 @@ export {
   deterministicShuffle,
   groupAndShuffleQuestions,
 } from "../../../lib/question-randomization"
+export {
+  validateQuestionComposition,
+  sampleQuestionsByComposition,
+  calculateNormalizedPgScore,
+  calculateNormalizedEssayScore,
+  calculateCompositeFinalScore,
+  type QuestionCompositionConfig,
+} from "../../../lib/exam-sampling"
 
 /**
  * Karakter yang aman dan mudah dibaca tanpa ambigu untuk token ujian.

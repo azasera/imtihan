@@ -107,6 +107,23 @@ export default function SesiUjianPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [continuationSource, setContinuationSource] = React.useState<ContinuationSource | null>(null)
 
+  // Form states untuk komposisi & pembobotan soal (sampling acak)
+  const [compositionEnabled, setCompositionEnabled] = React.useState<boolean>(false)
+  const [pgCountInput, setPgCountInput] = React.useState<string>("20")
+  const [pgWeightInput, setPgWeightInput] = React.useState<string>("70")
+  const [essayCountInput, setEssayCountInput] = React.useState<string>("5")
+  const [essayWeightInput, setEssayWeightInput] = React.useState<string>("30")
+
+  const selectedBankDetails = useQuery(
+    api.bank.public.queries.getQuestionBank,
+    selectedBankId ? { bankId: selectedBankId as Id<"questionBanks"> } : "skip"
+  )
+
+  const availablePg =
+    selectedBankDetails?.questions?.filter((q) => q.type !== "essay").length ?? 0
+  const availableEssay =
+    selectedBankDetails?.questions?.filter((q) => q.type === "essay").length ?? 0
+
   // State feedback copy token & regenerate
   const [copiedToken, setCopiedToken] = React.useState<string | null>(null)
   const [regeneratingId, setRegeneratingId] = React.useState<string | null>(null)
@@ -139,6 +156,11 @@ export default function SesiUjianPage() {
     setViolationThresholdInput(String(DEFAULT_VIOLATION_THRESHOLD))
     setRotationEnabled(false)
     setRotationMinutes(15)
+    setCompositionEnabled(false)
+    setPgCountInput("20")
+    setPgWeightInput("70")
+    setEssayCountInput("5")
+    setEssayWeightInput("30")
     setIsDialogOpen(true)
   }
 
@@ -187,6 +209,51 @@ export default function SesiUjianPage() {
       violationThreshold = parsedThreshold.value
     }
 
+    let questionComposition = undefined
+    if (compositionEnabled) {
+      const pgCount = parseInt(pgCountInput, 10) || 0
+      const pgWeight = parseInt(pgWeightInput, 10) || 0
+      const essayCount = parseInt(essayCountInput, 10) || 0
+      const essayWeight = parseInt(essayWeightInput, 10) || 0
+
+      if (pgCount < 0 || essayCount < 0) {
+        toast.error("Jumlah butir soal tidak boleh bernilai negatif.")
+        return
+      }
+
+      if (pgCount === 0 && essayCount === 0) {
+        toast.error("Minimal harus ada 1 butir soal yang diujikan.")
+        return
+      }
+
+      if (pgWeight + essayWeight !== 100) {
+        toast.error(`Total bobot nilai harus tepat 100% (saat ini ${pgWeight + essayWeight}%).`)
+        return
+      }
+
+      if (pgCount > availablePg) {
+        toast.error(
+          `Jumlah butir Pilihan Ganda melebihi stok yang tersedia (diminta ${pgCount}, tersedia ${availablePg}).`
+        )
+        return
+      }
+
+      if (essayCount > availableEssay) {
+        toast.error(
+          `Jumlah butir Esai melebihi stok yang tersedia (diminta ${essayCount}, tersedia ${availableEssay}).`
+        )
+        return
+      }
+
+      questionComposition = {
+        enabled: true,
+        pgCount,
+        pgWeight,
+        essayCount,
+        essayWeight,
+      }
+    }
+
     setIsSubmitting(true)
     try {
       const result = await createSession({
@@ -202,6 +269,7 @@ export default function SesiUjianPage() {
           ? { enforcementMode: "lock" as const, violationThreshold }
           : {}),
         tokenRotationMinutes: rotationEnabled ? rotationMinutes : undefined,
+        questionComposition,
       })
 
       toast.success(`Sesi ujian berhasil dijadwalkan dengan Token: ${result.token}`)
@@ -501,6 +569,120 @@ export default function SesiUjianPage() {
                     className="shrink-0"
                   />
                 </div>
+              </div>
+
+              <div className="p-3 bg-muted/40 rounded-lg space-y-3 border">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="switch-composition" className="text-xs font-semibold cursor-pointer">
+                      Gunakan Komposisi & Pembobotan Soal
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Ambil sampel sebagian soal secara acak (misal 20 PG bobot 70% dan 5 Esai bobot 30%).
+                    </p>
+                  </div>
+                  <Switch
+                    id="switch-composition"
+                    checked={compositionEnabled}
+                    onCheckedChange={(checked) => setCompositionEnabled(checked)}
+                    className="shrink-0"
+                  />
+                </div>
+
+                {compositionEnabled && (
+                  <div className="space-y-3 border-t pt-3">
+                    {selectedBankDetails ? (
+                      <div className="text-[11px] bg-background/80 p-2 rounded border space-y-0.5">
+                        <span className="font-medium text-foreground">Ketersediaan Butir di Bank:</span>
+                        <div className="flex items-center gap-3 text-muted-foreground">
+                          <span>Pilihan Ganda: <strong className="text-foreground">{availablePg}</strong> butir</span>
+                          <span>•</span>
+                          <span>Esai: <strong className="text-foreground">{availableEssay}</strong> butir</span>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-2.5 rounded border bg-background/60 space-y-2">
+                        <span className="text-xs font-medium block">Pilihan Ganda</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="pg-count-input" className="text-[11px]">Jumlah Butir</Label>
+                            <Input
+                              id="pg-count-input"
+                              type="number"
+                              min={0}
+                              max={availablePg || 500}
+                              value={pgCountInput}
+                              onChange={(e) => setPgCountInput(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="pg-weight-input" className="text-[11px]">Bobot (%)</Label>
+                            <Input
+                              id="pg-weight-input"
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={pgWeightInput}
+                              onChange={(e) => setPgWeightInput(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 rounded border bg-background/60 space-y-2">
+                        <span className="text-xs font-medium block">Esai</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="essay-count-input" className="text-[11px]">Jumlah Butir</Label>
+                            <Input
+                              id="essay-count-input"
+                              type="number"
+                              min={0}
+                              max={availableEssay || 500}
+                              value={essayCountInput}
+                              onChange={(e) => setEssayCountInput(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="essay-weight-input" className="text-[11px]">Bobot (%)</Label>
+                            <Input
+                              id="essay-weight-input"
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={essayWeightInput}
+                              onChange={(e) => setEssayWeightInput(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-muted-foreground text-[11px]">
+                        Total Diujikan: <strong className="text-foreground">{(parseInt(pgCountInput) || 0) + (parseInt(essayCountInput) || 0)}</strong> butir
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground text-[11px]">Total Bobot:</span>
+                        {(parseInt(pgWeightInput) || 0) + (parseInt(essayWeightInput) || 0) === 100 ? (
+                          <Badge variant="outline" className="text-emerald-700 dark:text-emerald-400 border-emerald-500/40 text-[11px] py-0">
+                            100% Pas
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[11px] py-0">
+                            {(parseInt(pgWeightInput) || 0) + (parseInt(essayWeightInput) || 0)}% (Harus 100%)
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -811,6 +993,14 @@ export default function SesiUjianPage() {
                       <LayersIcon className="size-3.5 text-muted-foreground/70 shrink-0" />
                       <span>{session.totalQuestions} Soal ({session.totalPoints} Poin)</span>
                     </div>
+                    {session.questionComposition?.enabled && (
+                      <div className="col-span-2 text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                        <LayersIcon className="size-3 text-primary shrink-0" />
+                        <span>
+                          Komposisi: {session.questionComposition.pgCount} PG ({session.questionComposition.pgWeight}%) + {session.questionComposition.essayCount} Esai ({session.questionComposition.essayWeight}%)
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Opsi Keamanan */}

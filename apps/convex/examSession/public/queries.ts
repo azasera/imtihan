@@ -50,8 +50,9 @@ export const listExamSessions = query({
           bankTitle: bank?.title ?? "Paket Bank Soal (Terhapus)",
           subjectCode: bank?.subjectCode ?? "-",
           gradeLevel: bank?.gradeLevel ?? "-",
-          totalQuestions: questions.length,
-          totalPoints: bank?.totalPoints ?? 100,
+          totalQuestions: session.selectedQuestionIds?.length ?? questions.length,
+          bankTotalQuestions: questions.length,
+          totalPoints: session.questionComposition?.enabled ? 100 : (bank?.totalPoints ?? 100),
         }
       })
     )
@@ -100,8 +101,9 @@ export const getExamSession = query({
       bankTitle: bank?.title ?? "Paket Bank Soal",
       subjectCode: bank?.subjectCode ?? "-",
       gradeLevel: bank?.gradeLevel ?? "-",
-      totalQuestions: questions.length,
-      totalPoints: bank?.totalPoints ?? 100,
+      totalQuestions: session.selectedQuestionIds?.length ?? questions.length,
+      bankTotalQuestions: questions.length,
+      totalPoints: session.questionComposition?.enabled ? 100 : (bank?.totalPoints ?? 100),
     }
   },
 })
@@ -214,7 +216,7 @@ export const verifySessionToken = query({
       endTime: session.endTime,
       subjectCode: bank?.subjectCode ?? "Ujian",
       gradeLevel: bank?.gradeLevel ?? "-",
-      totalQuestions: questions.length,
+      totalQuestions: session.selectedQuestionIds?.length ?? questions.length,
       randomizeQuestions: session.randomizeQuestions,
       randomizeOptions: session.randomizeOptions,
     }
@@ -309,9 +311,14 @@ export const getStudentExamSheet = query({
       .withIndex("by_bank", (q) => q.eq("bankId", session.bankId))
       .collect()
 
+    const effectiveRawQuestions =
+      session.selectedQuestionIds && session.selectedQuestionIds.length > 0
+        ? rawQuestions.filter((q) => session.selectedQuestionIds!.includes(q._id))
+        : rawQuestions
+
     // Urutkan soal: terkelompok (objektif di awal, esai di akhir) dan diacak deterministik per santri bila randomizeQuestions aktif
     const orderedQuestions = groupAndShuffleQuestions(
-      rawQuestions,
+      effectiveRawQuestions,
       participant._id,
       session.randomizeQuestions
     )
@@ -345,6 +352,21 @@ export const getStudentExamSheet = query({
           }
         }
 
+        let points = q.points
+        if (session.questionComposition?.enabled) {
+          if (q.type !== "essay") {
+            points =
+              session.questionComposition.pgCount > 0
+                ? Math.round((session.questionComposition.pgWeight / session.questionComposition.pgCount) * 100) / 100
+                : 0
+          } else {
+            points =
+              session.questionComposition.essayCount > 0
+                ? Math.round((session.questionComposition.essayWeight / session.questionComposition.essayCount) * 100) / 100
+                : 0
+          }
+        }
+
         return {
           id: q._id,
           displayNumber: idx + 1,
@@ -352,7 +374,7 @@ export const getStudentExamSheet = query({
           stimulusText: q.stimulusText,
           stimulusMediaUrl: mediaUrl,
           questionText: q.questionText,
-          points: q.points,
+          points,
           options,
         }
       })
@@ -440,7 +462,12 @@ export const getParticipantAnswersForGrading = query({
       .withIndex("by_bank", (q) => q.eq("bankId", session.bankId))
       .collect()
 
-    questions.sort((a, b) => a.orderNumber - b.orderNumber)
+    const effectiveQuestions =
+      session.selectedQuestionIds && session.selectedQuestionIds.length > 0
+        ? questions.filter((q) => session.selectedQuestionIds!.includes(q._id))
+        : questions
+
+    effectiveQuestions.sort((a, b) => a.orderNumber - b.orderNumber)
 
     const studentAnswers = await ctx.db
       .query("studentAnswers")
@@ -450,7 +477,7 @@ export const getParticipantAnswersForGrading = query({
     const answersMap = new Map(studentAnswers.map((a) => [a.questionId, a]))
 
     const detailedQuestions = await Promise.all(
-      questions.map(async (q) => {
+      effectiveQuestions.map(async (q) => {
         const ans = answersMap.get(q._id)
         let mediaUrl = q.stimulusMediaUrl
         if (q.stimulusMediaStorageId) {
