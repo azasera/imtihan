@@ -843,6 +843,20 @@ function finalizeDraft(draft: DraftItem, number: number, defaultPoints: number):
   if (!questionText) at("teks soal tidak ditemukan, jadi butir ini tidak dapat disimpan")
 
   if (draft.type === "true_false") {
+    // Jika naskah membawa opsi berhuruf (misal A. Benar / B. Salah), periksa apakah ada yang bertanda kunci bintang
+    if (draft.trueFalseKey === null && draft.options.length > 0) {
+      const correctOpt = draft.options.find((o) => o.isCorrect)
+      if (correctOpt) {
+        const text = correctOpt.text.toLowerCase()
+        const label = correctOpt.label.toUpperCase()
+        if (text.includes("salah") || text.includes("false") || (label === "B" && !text.includes("benar"))) {
+          draft.trueFalseKey = "Salah"
+        } else {
+          draft.trueFalseKey = "Benar"
+        }
+      }
+    }
+
     if (draft.trueFalseKey === null) at("baris kunci B atau Salah belum ditulis")
     else if (draft.trueFalseKeyLines.length > 1)
       problems.push(
@@ -850,7 +864,11 @@ function finalizeDraft(draft: DraftItem, number: number, defaultPoints: number):
       )
   }
 
-  if (draft.type === "true_false" && draft.options.length > 0) {
+  const isStandardTFOptions =
+    draft.options.length === 2 &&
+    draft.options.every((o) => /^(benar|betul|salah|keliru|true|false)$/i.test(o.text.trim()))
+
+  if (draft.type === "true_false" && draft.options.length > 0 && !isStandardTFOptions) {
     problems.push(
       `soal benar/salah pada baris ke-${draft.sourceLine} membawa opsi berhuruf; cukup tulis kunci B atau S pada baris sendiri.`
     )
@@ -934,7 +952,16 @@ export function toImportPayload(item: ParsedImportItem): ImportPayloadItem {
     points: item.points,
   }
   if (item.stimulusText) payload.stimulusText = item.stimulusText
-  if (item.type !== "essay" && item.options.length > 0) payload.options = item.options
+  if (item.type === "true_false") {
+    const key =
+      item.trueFalseKey ??
+      (item.options.find((o) => o.isCorrect && (o.id === "false" || o.label === "Salah"))
+        ? "Salah"
+        : "Benar")
+    payload.options = trueFalseOptions(key)
+  } else if (item.type !== "essay" && item.options.length > 0) {
+    payload.options = item.options
+  }
   if (item.type === "essay" && item.rubric) payload.rubric = item.rubric
   if (item.explanation) payload.explanation = item.explanation
   if (item.thinkingLevel) payload.thinkingLevel = item.thinkingLevel
@@ -990,21 +1017,19 @@ export function setItemOptionKey(item: ParsedImportItem, keyLetterOrLabel: strin
   }
 
   if (item.type === "true_false") {
-    const isBenar = normKey === "B" || normKey === "BENAR"
-    const isSalah = normKey === "S" || normKey === "SALAH"
+    const isBenar = normKey === "B" || normKey === "BENAR" || normKey === "TRUE" || normKey === "A"
+    const isSalah = normKey === "S" || normKey === "SALAH" || normKey === "FALSE"
     if (!isBenar && !isSalah) return item
 
     const chosenKey: "Benar" | "Salah" = isBenar ? "Benar" : "Salah"
-    const updatedOptions = item.options.map((opt) => ({
-      ...opt,
-      isCorrect: opt.label === (isBenar ? "B" : "S") || opt.text.toLowerCase() === chosenKey.toLowerCase(),
-    }))
+    const updatedOptions = trueFalseOptions(chosenKey)
 
     const remainingProblems = item.problems.filter(
       (p) =>
-        !p.includes("kunci B atau Salah belum ditulis") &&
+        !p.includes("kunci B atau Salah") &&
         !p.includes("baris kunci B atau Salah") &&
-        !p.includes("kolom kunci")
+        !p.includes("kolom kunci") &&
+        !p.includes("membawa opsi berhuruf")
     )
 
     return {
@@ -1069,6 +1094,16 @@ export function applyBulkKeyString(
       const key = keyMap.get(item.number)
       if (key && (item.type === "multiple_choice" || item.type === "true_false")) {
         appliedCount++
+        if (
+          item.type === "multiple_choice" &&
+          (key === "S" ||
+            key === "SALAH" ||
+            key === "BENAR" ||
+            (key === "B" && item.options.length <= 2 && item.options.some((o) => /benar|betul/i.test(o.text))))
+        ) {
+          const tfItem = setItemType(item, "true_false")
+          return setItemOptionKey(tfItem, key)
+        }
         return setItemOptionKey(item, key)
       }
       return item
@@ -1090,6 +1125,16 @@ export function applyBulkKeyString(
     if ((item.type === "multiple_choice" || item.type === "true_false") && tokenIdx < tokens.length) {
       const key = tokens[tokenIdx++]
       appliedCount++
+      if (
+        item.type === "multiple_choice" &&
+        (key === "S" ||
+          key === "SALAH" ||
+          key === "BENAR" ||
+          (key === "B" && item.options.length <= 2 && item.options.some((o) => /benar|betul/i.test(o.text))))
+      ) {
+        const tfItem = setItemType(item, "true_false")
+        return setItemOptionKey(tfItem, key)
+      }
       return setItemOptionKey(item, key)
     }
     return item
@@ -1114,12 +1159,21 @@ export function setItemType(item: ParsedImportItem, newType: ImportQuestionType)
     options = []
   } else if (newType === "true_false") {
     if (!trueFalseKey) {
+      const correctOpt = item.options.find((o) => o.isCorrect)
+      if (correctOpt) {
+        const text = correctOpt.text.toLowerCase()
+        const label = correctOpt.label.toUpperCase()
+        if (text.includes("salah") || text.includes("false") || label === "B" || label === "S") {
+          trueFalseKey = "Salah"
+        } else {
+          trueFalseKey = "Benar"
+        }
+      }
+    }
+    if (!trueFalseKey) {
       trueFalseKey = "Benar"
     }
-    options = [
-      { id: "true", label: "Benar", text: "Pernyataan Benar", isCorrect: trueFalseKey === "Benar" },
-      { id: "false", label: "Salah", text: "Pernyataan Salah", isCorrect: trueFalseKey === "Salah" },
-    ]
+    options = trueFalseOptions(trueFalseKey)
   }
 
   // Hitung ulang problems untuk tipe yang baru
@@ -1184,6 +1238,18 @@ export function convertNoOptionItemsToEssay(items: ParsedImportItem[]): ParsedIm
   return items.map((item) => {
     if (item.type === "multiple_choice" && item.options.length === 0) {
       return setItemType(item, "essay")
+    }
+    return item
+  })
+}
+
+/**
+ * Mengubah seluruh butir pilihan ganda dengan 2 opsi menjadi tipe Benar / Salah.
+ */
+export function convertTwoOptionItemsToTrueFalse(items: ParsedImportItem[]): ParsedImportItem[] {
+  return items.map((item) => {
+    if (item.type === "multiple_choice" && item.options.length === 2) {
+      return setItemType(item, "true_false")
     }
     return item
   })

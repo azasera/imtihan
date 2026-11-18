@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import {
   applyBulkKeyString,
   convertNoOptionItemsToEssay,
+  convertTwoOptionItemsToTrueFalse,
   importThinkingLevelLabel,
   importTypeLabel,
   setItemOptionKey,
@@ -172,6 +173,39 @@ export function QuestionImportPreview({
               >
                 <SparklesIcon className="size-3.5" />
                 <span>Jadikan {noOptionCount} Butir Sebagai Soal Essay</span>
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Banner Perbaikan Cepat: Deteksi Butir dengan 2 Opsi Jawaban (Kemungkinan Soal Benar / Salah) */}
+      {(() => {
+        const twoOptionCount = items.filter(
+          (item) => item.type === "multiple_choice" && item.options.length === 2
+        ).length
+        if (twoOptionCount === 0) return null
+        return (
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 space-y-2 text-xs text-emerald-900 dark:text-emerald-200 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-start sm:items-center gap-2">
+                <CheckCircle2Icon className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+                <span>
+                  Terdeteksi <strong>{twoOptionCount} butir</strong> dengan 2 opsi jawaban (A & B). Apakah butir ini adalah tipe Benar / Salah?
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => {
+                  const updated = convertTwoOptionItemsToTrueFalse(items)
+                  onItemsChange?.(updated)
+                  toast.success(`${twoOptionCount} butir berhasil diubah menjadi tipe Benar / Salah!`)
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs shrink-0 transition-colors cursor-pointer"
+              >
+                <SparklesIcon className="size-3.5" />
+                <span>Jadikan {twoOptionCount} Butir Sebagai Benar / Salah</span>
               </button>
             </div>
           </div>

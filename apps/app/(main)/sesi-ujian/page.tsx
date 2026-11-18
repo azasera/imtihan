@@ -233,7 +233,7 @@ export default function SesiUjianPage() {
 
       if (pgCount > availablePg) {
         toast.error(
-          `Jumlah butir Pilihan Ganda melebihi stok yang tersedia (diminta ${pgCount}, tersedia ${availablePg}).`
+          `Jumlah butir Objektif (PG / Benar-Salah) melebihi stok yang tersedia (diminta ${pgCount}, tersedia ${availablePg}).`
         )
         return
       }
@@ -595,7 +595,7 @@ export default function SesiUjianPage() {
                       <div className="text-[11px] bg-background/80 p-2 rounded border space-y-0.5">
                         <span className="font-medium text-foreground">Ketersediaan Butir di Bank:</span>
                         <div className="flex items-center gap-3 text-muted-foreground">
-                          <span>Pilihan Ganda: <strong className="text-foreground">{availablePg}</strong> butir</span>
+                          <span>Objektif (PG / Benar-Salah): <strong className="text-foreground">{availablePg}</strong> butir</span>
                           <span>•</span>
                           <span>Esai: <strong className="text-foreground">{availableEssay}</strong> butir</span>
                         </div>
@@ -604,7 +604,7 @@ export default function SesiUjianPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="p-2.5 rounded border bg-background/60 space-y-2">
-                        <span className="text-xs font-medium block">Pilihan Ganda</span>
+                        <span className="text-xs font-medium block">Soal Objektif (PG / Benar-Salah)</span>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <Label htmlFor="pg-count-input" className="text-[11px]">Jumlah Butir</Label>

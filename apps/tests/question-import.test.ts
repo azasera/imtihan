@@ -10,9 +10,13 @@ const APPS_ROOT = path.resolve(__dirname, "..")
 const {
   FORMAT_HINTS,
   IMPORT_EXAMPLE,
+  applyBulkKeyString,
   chunkImportItems,
+  convertTwoOptionItemsToTrueFalse,
   importTypeLabel,
   parseQuestionImport,
+  setItemOptionKey,
+  setItemType,
   toImportPayload,
 } = (await import(new URL("../lib/question-import.ts", import.meta.url).href)) as typeof import("../lib/question-import")
 
@@ -683,5 +687,121 @@ describe("Tempelan Markdown: nomor bergaris miring dan pemisah baris paksa", () 
     assert.equal(item.achievementRef, "Aqidah — pengertian iman menurut Ahlus Sunnah wal Jamaah")
     assert.ok(item.explanation.includes("Iman menurut Ahlus Sunnah wal Jamaah"))
     assert.deepEqual(item.problems, [])
+  })
+})
+
+describe("Penanganan dan Perbaikan Soal Benar / Salah (Impor, Kunci Massal, Payload)", () => {
+  it("setItemOptionKey pada tipe true_false menghasilkan tepat 2 opsi dengan satu kunci benar", () => {
+    const raw = parseQuestionImport("1. (benar/salah) Pernyataan uji.\nB", 5).items[0]
+    // Uji ubah kunci ke Salah
+    const toSalah = setItemOptionKey(raw, "Salah")
+    assert.equal(toSalah.trueFalseKey, "Salah")
+    assert.equal(toSalah.options.length, 2)
+    assert.equal(toSalah.options.filter((o) => o.isCorrect).length, 1)
+    assert.equal(toSalah.options.find((o) => o.label === "Salah")?.isCorrect, true)
+    assert.equal(toSalah.options.find((o) => o.label === "Benar")?.isCorrect, false)
+    assert.deepEqual(toSalah.problems, [])
+
+    // Uji ubah kunci kembali ke Benar lewat kode B
+    const toBenar = setItemOptionKey(toSalah, "B")
+    assert.equal(toBenar.trueFalseKey, "Benar")
+    assert.equal(toBenar.options.length, 2)
+    assert.equal(toBenar.options.filter((o) => o.isCorrect).length, 1)
+    assert.equal(toBenar.options.find((o) => o.label === "Benar")?.isCorrect, true)
+    assert.equal(toBenar.options.find((o) => o.label === "Salah")?.isCorrect, false)
+    assert.deepEqual(toBenar.problems, [])
+  })
+
+  it("menerima naskah benar/salah yang membawa opsi A. Benar dan B. Salah tanpa keluhan berhuruf", () => {
+    const naskah = [
+      "1. (benar/salah) Adab makan menggunakan tangan kanan.",
+      "A. Benar*",
+      "B. Salah",
+    ].join("\n")
+    const r = parseQuestionImport(naskah, 5)
+    assert.equal(r.items.length, 1)
+    assert.equal(r.readyCount, 1)
+    assert.equal(r.problemCount, 0)
+    assert.equal(r.items[0].type, "true_false")
+    assert.equal(r.items[0].trueFalseKey, "Benar")
+    assert.equal(r.items[0].options.find((o) => o.label === "Benar")?.isCorrect, true)
+  })
+
+  it("applyBulkKeyString dapat menerapkan 50 kunci B dan S sekaligus ke soal benar/salah", () => {
+    // Simulasi 50 butir soal benar/salah yang belum memiliki kunci
+    const naskahLines: string[] = []
+    for (let i = 1; i <= 50; i++) {
+      naskahLines.push(`${i}. (benar/salah) Pernyataan butir soal nomor ${i}.`)
+      naskahLines.push("")
+    }
+    const parsed = parseQuestionImport(naskahLines.join("\n"), 5)
+    assert.equal(parsed.items.length, 50)
+    assert.equal(parsed.problemCount, 50, "Awalnya 50 butir butuh kunci")
+
+    // Deretan 50 kunci selang-seling B dan S
+    const bulkKeys = Array.from({ length: 50 }, (_, i) => `${i + 1}.${i % 2 === 0 ? "B" : "S"}`).join(" ")
+    const applied = applyBulkKeyString(parsed.items, bulkKeys)
+    assert.equal(applied.appliedCount, 50)
+
+    // Pastikan seluruh 50 butir kini siap disimpan dan payload options-nya valid
+    for (let i = 0; i < 50; i++) {
+      const item = applied.items[i]
+      assert.deepEqual(item.problems, [], `Butir ${i + 1} harus bebas problem`)
+      assert.equal(item.options.length, 2)
+      assert.equal(item.options.filter((o) => o.isCorrect).length, 1, `Butir ${i + 1} harus tepat 1 kunci`)
+      const expectedKey = i % 2 === 0 ? "Benar" : "Salah"
+      assert.equal(item.trueFalseKey, expectedKey)
+      assert.equal(item.options.find((o) => o.label === expectedKey)?.isCorrect, true)
+
+      // Payload yang dikirim ke Convex
+      const payload = toImportPayload(item)
+      assert.equal(payload.options?.length, 2)
+      assert.equal(payload.options?.filter((o) => o.isCorrect).length, 1)
+    }
+  })
+
+  it("applyBulkKeyString otomatis mengubah butir 2-opsi menjadi Benar / Salah jika kunci berupa B/S", () => {
+    // Kasus umum pengajar: menempel butir bernomor dengan opsi A & B, lalu menempel kunci B/S
+    const naskah = [
+      "1. Adab dan akhlak yang baik merupakan cermin keimanan.",
+      "A. Benar",
+      "B. Salah",
+      "",
+      "2. Shalat fardhu ada 6 waktu dalam sehari.",
+      "A. Benar",
+      "B. Salah",
+    ].join("\n")
+    const parsed = parseQuestionImport(naskah, 5) // terdeteksi default multiple_choice
+    assert.equal(parsed.items[0].type, "multiple_choice")
+
+    const applied = applyBulkKeyString(parsed.items, "1.B 2.S")
+    assert.equal(applied.appliedCount, 2)
+    assert.equal(applied.items[0].type, "true_false")
+    assert.equal(applied.items[0].trueFalseKey, "Benar")
+    assert.equal(applied.items[0].options.filter((o) => o.isCorrect).length, 1)
+
+    assert.equal(applied.items[1].type, "true_false")
+    assert.equal(applied.items[1].trueFalseKey, "Salah")
+    assert.equal(applied.items[1].options.filter((o) => o.isCorrect).length, 1)
+  })
+
+  it("convertTwoOptionItemsToTrueFalse mengubah seluruh butir 2 opsi menjadi Benar/Salah", () => {
+    const naskah = [
+      "1. Pernyataan satu.",
+      "A. Pilihan A",
+      "B. Pilihan B",
+      "",
+      "2. Pertanyaan dua dengan 4 opsi.",
+      "A. Opsi A",
+      "B. Opsi B",
+      "C. Opsi C",
+      "D. Opsi D",
+    ].join("\n")
+    const parsed = parseQuestionImport(naskah, 5)
+    const converted = convertTwoOptionItemsToTrueFalse(parsed.items)
+    assert.equal(converted[0].type, "true_false")
+    assert.equal(converted[0].options.length, 2)
+    assert.equal(converted[1].type, "multiple_choice")
+    assert.equal(converted[1].options.length, 4)
   })
 })

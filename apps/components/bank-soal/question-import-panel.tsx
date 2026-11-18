@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useMutation } from "convex/react"
+import { ConvexError } from "convex/values"
 import {
   CheckCheckIcon,
   ChevronDownIcon,
@@ -226,7 +227,12 @@ export function QuestionImportPanel({ bankId, startOrderNumber, onSaved }: Quest
         entered += chunk.length
         setSavedCount(entered)
       } catch (error) {
-        const reason = error instanceof Error ? error.message : "Penyimpanan berhenti di tengah tahap."
+        const reason =
+          error instanceof ConvexError
+            ? (error.data as string)
+            : error instanceof Error
+              ? error.message
+              : "Penyimpanan berhenti di tengah tahap."
         const remaining = items.slice(entered)
         setFailure({ reason, remaining })
         // Pratinjau hanya menyisakan butir yang belum masuk, jadi menekan simpan lagi

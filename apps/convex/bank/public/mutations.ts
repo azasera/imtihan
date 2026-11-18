@@ -1,4 +1,4 @@
-import { v } from "convex/values"
+import { ConvexError, v } from "convex/values"
 
 import { mutation, internalMutation, type MutationCtx } from "../../_generated/server"
 import { cleanStudentName } from "../../../lib/rapor-utils"
@@ -310,7 +310,7 @@ export const importQuestions = mutation({
         validateQuestionBody(item)
       } catch (error) {
         const reason = error instanceof Error ? error.message : "isinya belum lengkap."
-        throw new Error(`Butir ke-${index + 1} pada tahap ini tidak dapat disimpan: ${reason}`)
+        throw new ConvexError(`Butir ke-${index + 1} pada tahap ini tidak dapat disimpan: ${reason}`)
       }
     })
 
