@@ -45,13 +45,10 @@ export function RaporLetterhead({ institution, className = "" }: RaporLetterhead
 
         {/* Teks Identitas Resmi Lembaga di Bawah Naungan Pesantren */}
         <div className="flex-1 text-center space-y-0.5 min-w-0">
-          <p className="text-[9px] md:text-[10px] font-semibold tracking-wider uppercase text-muted-foreground font-sans">
-            {header.foundation} &bull; {header.city}
-          </p>
-          <h2 className="text-sm md:text-lg font-extrabold tracking-wide uppercase font-heading text-foreground leading-tight">
+          <h2 className="text-lg md:text-2xl font-extrabold tracking-wide uppercase font-heading text-foreground leading-tight">
             {header.pesantrenTitle ?? "PONDOK PESANTREN"}
           </h2>
-          <h3 className="text-[10px] md:text-xs font-bold tracking-wider uppercase text-foreground/90">
+          <h3 className="text-xs md:text-sm font-bold tracking-wider uppercase text-foreground/90">
             {header.pesantrenSubtitle ?? "ISLAMIC CENTRE  AT-TAUHID BANGKA BELITUNG"}
           </h3>
           <h1 className="text-xs md:text-sm font-extrabold tracking-tight uppercase text-foreground mt-0.5">

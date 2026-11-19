@@ -5,7 +5,12 @@ import {
   getDefaultHomeroomForClass,
   normalizeClassName,
 } from "../private/helpers"
-import { calculateNAR, getGradePredicate, generateCompetencyNarrative } from "../../../lib/rapor-utils"
+import {
+  calculateNAR,
+  getGradePredicate,
+  generateCompetencyNarrative,
+  isDiniyahSubject,
+} from "../../../lib/rapor-utils"
 
 export const saveAcademicPeriod = mutation({
   args: {
@@ -151,8 +156,9 @@ export const saveSubjectGrades = mutation({
       const midtermScore = typeof g.midtermScore === "number" && !isNaN(g.midtermScore) ? g.midtermScore : 0
       const finalExamScore = typeof g.finalExamScore === "number" && !isNaN(g.finalExamScore) ? g.finalExamScore : 0
       const calculatedNar = calculateNAR(dailyScore, midtermScore, finalExamScore)
+      const isDiniyah = isDiniyahSubject(args.subjectCode)
       const finalScore =
-        typeof g.finalScore === "number" && !isNaN(g.finalScore)
+        isDiniyah && typeof g.finalScore === "number" && !isNaN(g.finalScore)
           ? g.finalScore
           : calculatedNar
       const predicate = getGradePredicate(finalScore)
@@ -372,6 +378,7 @@ export const saveHomeroomAssessment = mutation({
     haditsAchievement: v.optional(v.string()),
     tahfidzNotes: v.optional(v.string()),
     homeroomNotes: v.optional(v.string()),
+    kokurikulerNotes: v.optional(v.string()),
     promotionDecision: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -408,6 +415,7 @@ export const saveHomeroomAssessment = mutation({
         haditsAchievement: args.haditsAchievement,
         tahfidzNotes: args.tahfidzNotes,
         homeroomNotes: args.homeroomNotes,
+        kokurikulerNotes: args.kokurikulerNotes,
         promotionDecision: args.promotionDecision,
         updatedBy: user.name,
         updatedAt: now,
@@ -432,6 +440,7 @@ export const saveHomeroomAssessment = mutation({
       haditsAchievement: args.haditsAchievement,
       tahfidzNotes: args.tahfidzNotes,
       homeroomNotes: args.homeroomNotes,
+      kokurikulerNotes: args.kokurikulerNotes,
       promotionDecision: args.promotionDecision,
       updatedBy: user.name,
       createdAt: now,
@@ -610,5 +619,86 @@ export const resetClassHomeroomToDefault = mutation({
       createdAt: now,
       updatedAt: now,
     })
+  },
+})
+
+export const batchUpsertExtracurriculars = mutation({
+  args: {
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+    items: v.array(
+      v.object({
+        santriId: v.string(),
+        studentName: v.string(),
+        className: v.string(),
+        nisn: v.optional(v.string()),
+        institution: v.optional(v.string()),
+        extracurriculars: v.array(
+          v.object({
+            name: v.string(),
+            score: v.string(),
+            description: v.string(),
+          })
+        ),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    const userName = identity?.name || "Pengajar/Wali Kelas"
+    const now = Date.now()
+    let count = 0
+
+    for (const item of args.items) {
+      const existing = await ctx.db
+        .query("homeroomAssessments")
+        .withIndex("by_santri", (q) =>
+          q
+            .eq("santriId", item.santriId)
+            .eq("academicYear", args.academicYear)
+            .eq("semester", args.semester)
+        )
+        .first()
+
+      const instRaw = (item.institution || "").toUpperCase()
+      const institution: "SMPITA" | "SMAITA" | "MTA" =
+        instRaw === "SMAITA" || instRaw.includes("SMA")
+          ? "SMAITA"
+          : instRaw === "MTA" || instRaw.includes("MANZHUMAH")
+            ? "MTA"
+            : "SMPITA"
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          extracurriculars: item.extracurriculars,
+          updatedBy: userName,
+          updatedAt: now,
+        })
+      } else {
+        await ctx.db.insert("homeroomAssessments", {
+          academicYear: args.academicYear,
+          semester: args.semester,
+          santriId: item.santriId,
+          nisn: item.nisn ?? "-",
+          studentName: item.studentName,
+          className: item.className,
+          institution,
+          sickDays: 0,
+          permissionDays: 0,
+          absentDays: 0,
+          extracurriculars: item.extracurriculars,
+          haditsTarget: "3 Hadits Arba'in",
+          haditsAchievement: "3 Hadits Tuntas",
+          homeroomNotes:
+            "Alhamdulillah, semangat belajar dan tingkatkan terus prestasimu. Ta'at kepada guru dan orangtua serta istiqomah muraja'ah Al-Qur'an dan Hadits setiap hari.",
+          promotionDecision: "-",
+          updatedBy: userName,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      count++
+    }
+    return { count }
   },
 })

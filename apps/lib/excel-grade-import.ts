@@ -1,9 +1,10 @@
 /**
  * Utilitas parsing file Excel / CSV untuk import nilai rapor.
  *
- * Mendukung dua format input:
- *   A. Template bawaan aplikasi (kolom: No, NISN, Nama, Nilai)
- *   B. Excel bebas guru (sistem mendeteksi kolom NISN, Nama, dan Nilai otomatis)
+ * Mendukung format:
+ *   A. Template 3-in-1 (kolom: No, NISN, Nama Santri, PH, STS, SAS) - 1 file untuk 3 nilai sekaligus
+ *   B. Template legacy 1 kolom nilai (kolom: No, NISN, Nama, Nilai)
+ *   C. File bebas guru (deteksi otomatis kolom NISN, Nama, dan nilai)
  *
  * Pencocokan santri dilakukan by NISN terlebih dahulu; jika tidak ada atau
  * tidak cocok, fallback ke pencocokan nama (lowercase + strip spasi ganda).
@@ -15,8 +16,14 @@ import * as XLSX from "xlsx"
 export interface ParsedExcelRow {
   nisn: string
   name: string
-  /** Nilai mentah yang ditemukan; NaN jika kolom nilai tidak terbaca */
-  rawValue: number
+  /** Nilai mentah tunggal jika berkas berformat 1 kolom nilai (legacy/fallback) */
+  rawValue?: number
+  /** Nilai Penilaian Harian (PH) */
+  ph?: number | null
+  /** Nilai Sumatif Tengah Semester (STS) */
+  sts?: number | null
+  /** Nilai Sumatif Akhir Semester (SAS) */
+  sas?: number | null
 }
 
 /** Santri dari database (minimal yang diperlukan untuk matching) */
@@ -35,6 +42,13 @@ export interface ImportMatchResult {
   nisn: string
   studentName: string
   institution: "SMPITA" | "SMAITA" | "MTA"
+  /** Nilai PH (null jika kosong/tidak diisi di Excel) */
+  ph: number | null
+  /** Nilai STS (null jika kosong/tidak diisi di Excel) */
+  sts: number | null
+  /** Nilai SAS (null jika kosong/tidak diisi di Excel) */
+  sas: number | null
+  /** Nilai tunggal untuk backward compatibility */
   value: number | null
   status: MatchStatus
   /** Nama yang ditemukan di file Excel (untuk debugging/preview) */
@@ -45,12 +59,12 @@ export interface ImportMatchResult {
 // Helpers normalisasi
 // ---------------------------------------------------------------------------
 
-function normalizeNisn(raw: unknown): string {
+export function normalizeNisn(raw: unknown): string {
   if (raw == null) return ""
   return String(raw).trim().replace(/[^0-9]/g, "")
 }
 
-function normalizeName(raw: unknown): string {
+export function normalizeName(raw: unknown): string {
   if (raw == null) return ""
   return String(raw)
     .toLowerCase()
@@ -58,80 +72,132 @@ function normalizeName(raw: unknown): string {
     .trim()
 }
 
-function tryParseScore(raw: unknown): number {
+export function tryParseScore(raw: unknown): number {
   if (raw == null) return NaN
-  const n = typeof raw === "number" ? raw : parseFloat(String(raw).replace(",", "."))
-  return isNaN(n) ? NaN : n
+  const str = String(raw).trim()
+  if (str === "" || str === "-" || str === "—") return NaN
+  const n = typeof raw === "number" ? raw : parseFloat(str.replace(",", "."))
+  if (isNaN(n) || n < 0 || n > 100) return NaN
+  return Math.round(n * 100) / 100
 }
 
 // ---------------------------------------------------------------------------
 // Deteksi kolom otomatis
 // ---------------------------------------------------------------------------
 
-/**
- * Heuristik untuk mendeteksi indeks kolom NISN, Nama, dan Nilai dari
- * header row (baris pertama sheet yang berisi teks).
- *
- * Jika header tidak ditemukan, coba tebak dari pola data baris pertama data.
- */
-function detectColumns(rows: unknown[][]): {
+export interface DetectedColumns {
   nisnCol: number
   nameCol: number
+  phCol: number
+  stsCol: number
+  sasCol: number
   valueCol: number
-} {
-  if (rows.length === 0) return { nisnCol: 1, nameCol: 2, valueCol: 3 }
+  isMultiColumn: boolean
+}
 
-  const headerRow = rows[0].map((c) => String(c ?? "").toLowerCase())
+/**
+ * Heuristik untuk mendeteksi indeks kolom NISN, Nama, dan Nilai (PH, STS, SAS)
+ * dari header row.
+ */
+export function detectColumns(rows: unknown[][]): DetectedColumns {
+  const fallback: DetectedColumns = {
+    nisnCol: 1,
+    nameCol: 2,
+    phCol: 3,
+    stsCol: 4,
+    sasCol: 5,
+    valueCol: 3,
+    isMultiColumn: true,
+  }
 
-  // Coba cocokkan header
+  if (rows.length === 0) return fallback
+
+  const headerRow = rows[0].map((c) => String(c ?? "").trim().toLowerCase())
+
+  // Coba cocokkan header NISN
   const nisnIdx = headerRow.findIndex(
-    (h) => h.includes("nisn") || h.includes("nis") || h.includes("nomor induk")
+    (h) => h === "nisn" || h.includes("nisn") || h.includes("nis") || h.includes("nomor induk")
   )
+
+  // Coba cocokkan header Nama
   const nameIdx = headerRow.findIndex(
     (h) => h.includes("nama") || h.includes("siswa") || h.includes("santri") || h.includes("murid")
   )
+
+  // Coba cocokkan header 3 Nilai (PH, STS, SAS)
+  const phIdx = headerRow.findIndex(
+    (h) =>
+      h === "ph" ||
+      h.startsWith("ph ") ||
+      h.includes("ph /") ||
+      h.includes("ph/") ||
+      h.includes("harian") ||
+      h.includes("tugas")
+  )
+
+  const stsIdx = headerRow.findIndex(
+    (h) =>
+      h === "sts" ||
+      h.startsWith("sts ") ||
+      h.includes("sts /") ||
+      h.includes("sts/") ||
+      h.includes("pts") ||
+      h.includes("tengah semester") ||
+      h.includes("mid")
+  )
+
+  const sasIdx = headerRow.findIndex(
+    (h) =>
+      h === "sas" ||
+      h.startsWith("sas ") ||
+      h.includes("sas /") ||
+      h.includes("sas/") ||
+      h.includes("pas") ||
+      h.includes("akhir semester") ||
+      h.includes("uas") ||
+      h.includes("final")
+  )
+
+  const isMultiColumn = phIdx !== -1 || stsIdx !== -1 || sasIdx !== -1
+
+  // Coba cocokkan header single nilai (fallback format lama)
   const valueIdx = headerRow.findIndex(
     (h) =>
       h.includes("nilai") ||
       h.includes("score") ||
       h.includes("skor") ||
-      h.includes("ph") ||
-      h.includes("pts") ||
-      h.includes("pas") ||
-      h.includes("sts") ||
-      h.includes("sas")
+      h.includes("angka")
   )
 
-  // Jika header terdeteksi dengan baik, gunakan itu
-  if (nisnIdx !== -1 && nameIdx !== -1 && valueIdx !== -1) {
-    return { nisnCol: nisnIdx, nameCol: nameIdx, valueCol: valueIdx }
-  }
-
-  // Fallback: scan baris data pertama (baris index 1 jika ada header, atau 0 jika tidak)
-  const dataStartIdx = headerRow.some((h) => h.includes("nama") || h.includes("nisn")) ? 1 : 0
-  const dataRow = rows[dataStartIdx] ?? []
-
-  let guessedNisn = -1
-  let guessedName = -1
-  let guessedValue = -1
-
-  for (let i = 0; i < dataRow.length; i++) {
-    const cell = dataRow[i]
-    const str = String(cell ?? "").trim()
-    if (/^\d{10,}$/.test(str) && guessedNisn === -1) {
-      guessedNisn = i
-    } else if (/^\d{1,3}(\.\d+)?$/.test(str) && guessedValue === -1) {
-      guessedValue = i
-    } else if (str.length > 3 && /[a-zA-Z]/.test(str) && guessedName === -1) {
-      guessedName = i
+  if (nisnIdx !== -1 || nameIdx !== -1) {
+    return {
+      nisnCol: nisnIdx !== -1 ? nisnIdx : 1,
+      nameCol: nameIdx !== -1 ? nameIdx : 2,
+      phCol: phIdx !== -1 ? phIdx : (isMultiColumn ? 3 : -1),
+      stsCol: stsIdx !== -1 ? stsIdx : (isMultiColumn ? 4 : -1),
+      sasCol: sasIdx !== -1 ? sasIdx : (isMultiColumn ? 5 : -1),
+      valueCol: valueIdx !== -1 ? valueIdx : 3,
+      isMultiColumn: isMultiColumn || (!isMultiColumn && valueIdx === -1 && (rows[0].length >= 6)),
     }
   }
 
-  return {
-    nisnCol: nisnIdx !== -1 ? nisnIdx : guessedNisn !== -1 ? guessedNisn : 1,
-    nameCol: nameIdx !== -1 ? nameIdx : guessedName !== -1 ? guessedName : 2,
-    valueCol: valueIdx !== -1 ? valueIdx : guessedValue !== -1 ? guessedValue : 3,
+  // Fallback: scan data row pertama
+  const dataStartIdx = 1
+  const dataRow = rows[dataStartIdx] ?? []
+
+  if (dataRow.length >= 6) {
+    return {
+      nisnCol: 1,
+      nameCol: 2,
+      phCol: 3,
+      stsCol: 4,
+      sasCol: 5,
+      valueCol: 3,
+      isMultiColumn: true,
+    }
   }
+
+  return fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -156,26 +222,49 @@ export async function parseExcelFile(file: File): Promise<ParsedExcelRow[]> {
 
   if (rawRows.length < 2) return []
 
-  const { nisnCol, nameCol, valueCol } = detectColumns(rawRows)
+  const detected = detectColumns(rawRows)
 
-  // Tentukan baris data (lewati header jika baris pertama berisi teks)
+  // Tentukan baris data (lewati header jika baris pertama berisi teks pengenal)
   const firstRowIsHeader = rawRows[0].some((c) => {
     const s = String(c ?? "").toLowerCase()
-    return s.includes("nama") || s.includes("nisn") || s.includes("nilai") || s.includes("no")
+    return (
+      s.includes("nama") ||
+      s.includes("nisn") ||
+      s.includes("nilai") ||
+      s.includes("no") ||
+      s === "ph" ||
+      s === "sts" ||
+      s === "sas"
+    )
   })
   const dataRows = firstRowIsHeader ? rawRows.slice(1) : rawRows
 
   const result: ParsedExcelRow[] = []
 
   for (const row of dataRows) {
-    const nisn = normalizeNisn(row[nisnCol])
-    const name = String(row[nameCol] ?? "").trim()
-    const rawValue = tryParseScore(row[valueCol])
+    const nisn = normalizeNisn(row[detected.nisnCol])
+    const name = String(row[detected.nameCol] ?? "").trim()
 
     // Lewati baris kosong
     if (!nisn && !name) continue
 
-    result.push({ nisn, name, rawValue })
+    if (detected.isMultiColumn) {
+      const rawPh = detected.phCol !== -1 ? tryParseScore(row[detected.phCol]) : NaN
+      const rawSts = detected.stsCol !== -1 ? tryParseScore(row[detected.stsCol]) : NaN
+      const rawSas = detected.sasCol !== -1 ? tryParseScore(row[detected.sasCol]) : NaN
+
+      const ph = isNaN(rawPh) ? null : rawPh
+      const sts = isNaN(rawSts) ? null : rawSts
+      const sas = isNaN(rawSas) ? null : rawSas
+
+      const firstValid = ph ?? sts ?? sas
+      const rawValue = firstValid !== null ? firstValid : NaN
+
+      result.push({ nisn, name, ph, sts, sas, rawValue })
+    } else {
+      const rawValue = tryParseScore(row[detected.valueCol])
+      result.push({ nisn, name, rawValue, ph: null, sts: null, sas: null })
+    }
   }
 
   return result
@@ -191,7 +280,8 @@ export async function parseExcelFile(file: File): Promise<ParsedExcelRow[]> {
  */
 export function matchExcelToStudents(
   parsedRows: ParsedExcelRow[],
-  students: StudentRecord[]
+  students: StudentRecord[],
+  targetColumn?: "PH" | "STS" | "SAS"
 ): ImportMatchResult[] {
   // Bangun map lookup
   const byNisn = new Map<string, ParsedExcelRow>()
@@ -211,47 +301,80 @@ export function matchExcelToStudents(
 
     // 1. Cocokkan by NISN
     const nisnMatch = studentNisn ? byNisn.get(studentNisn) : undefined
-    if (nisnMatch) {
-      return {
-        santriId: student.santriId,
-        nisn: student.nisn,
-        studentName: student.name,
-        institution: student.institution,
-        value: isNaN(nisnMatch.rawValue) ? null : nisnMatch.rawValue,
-        status: isNaN(nisnMatch.rawValue) ? "no_value" : "matched_nisn",
-        excelName: nisnMatch.name || undefined,
-      } satisfies ImportMatchResult
-    }
-
     // 2. Fallback cocokkan by nama (exact setelah normalisasi)
-    const nameMatch = byName.get(studentNameNorm)
-    if (nameMatch) {
+    const match = nisnMatch ?? byName.get(studentNameNorm)
+    const isNisnMatched = Boolean(nisnMatch)
+
+    if (!match) {
       return {
         santriId: student.santriId,
         nisn: student.nisn,
         studentName: student.name,
         institution: student.institution,
-        value: isNaN(nameMatch.rawValue) ? null : nameMatch.rawValue,
-        status: isNaN(nameMatch.rawValue) ? "no_value" : "matched_name",
-        excelName: nameMatch.name || undefined,
+        ph: null,
+        sts: null,
+        sas: null,
+        value: null,
+        status: "unmatched",
       } satisfies ImportMatchResult
     }
 
-    // 3. Tidak cocok — tampil di preview sebagai peringatan
+    const hasPh = match.ph !== null && match.ph !== undefined && !isNaN(match.ph)
+    const hasSts = match.sts !== null && match.sts !== undefined && !isNaN(match.sts)
+    const hasSas = match.sas !== null && match.sas !== undefined && !isNaN(match.sas)
+    const hasRaw = match.rawValue !== undefined && !isNaN(match.rawValue)
+
+    const hasAnyScore = hasPh || hasSts || hasSas || hasRaw
+
+    if (!hasAnyScore) {
+      return {
+        santriId: student.santriId,
+        nisn: student.nisn,
+        studentName: student.name,
+        institution: student.institution,
+        ph: null,
+        sts: null,
+        sas: null,
+        value: null,
+        status: "no_value",
+        excelName: match.name || undefined,
+      } satisfies ImportMatchResult
+    }
+
+    // Hitung nilai ph, sts, sas
+    let phVal: number | null = hasPh ? match.ph! : null
+    let stsVal: number | null = hasSts ? match.sts! : null
+    let sasVal: number | null = hasSas ? match.sas! : null
+
+    // Jika single-column format lama dan targetColumn diberikan
+    if (!hasPh && !hasSts && !hasSas && hasRaw) {
+      if (targetColumn === "PH") phVal = match.rawValue!
+      else if (targetColumn === "STS") stsVal = match.rawValue!
+      else if (targetColumn === "SAS") sasVal = match.rawValue!
+    }
+
+    const primaryValue = hasRaw ? match.rawValue! : (phVal ?? stsVal ?? sasVal ?? null)
+
     return {
       santriId: student.santriId,
       nisn: student.nisn,
       studentName: student.name,
       institution: student.institution,
-      value: null,
-      status: "unmatched",
+      ph: phVal,
+      sts: stsVal,
+      sas: sasVal,
+      value: primaryValue,
+      status: isNisnMatched ? "matched_nisn" : "matched_name",
+      excelName: match.name || undefined,
     } satisfies ImportMatchResult
   })
 }
 
-/** Hanya baris yang berhasil dicocokkan dan memiliki nilai */
+/** Hanya baris yang berhasil dicocokkan dan memiliki minimal 1 nilai valid */
 export function filterMatchedResults(results: ImportMatchResult[]): ImportMatchResult[] {
   return results.filter(
-    (r) => (r.status === "matched_nisn" || r.status === "matched_name") && r.value !== null
+    (r) =>
+      (r.status === "matched_nisn" || r.status === "matched_name") &&
+      (r.ph !== null || r.sts !== null || r.sas !== null || r.value !== null)
   )
 }

@@ -351,6 +351,7 @@ export const getStudentReportCard = query({
         haditsAchievement: "-",
         tahfidzNotes: "-",
         homeroomNotes: "-",
+        kokurikulerNotes: undefined,
         promotionDecision: "-",
       },
       classSetting: {
@@ -454,6 +455,7 @@ export const getClassReportCards = query({
           haditsAchievement: "-",
           tahfidzNotes: "-",
           homeroomNotes: "-",
+          kokurikulerNotes: undefined,
           promotionDecision: "-",
         },
         classSetting: resolvedClassSetting,

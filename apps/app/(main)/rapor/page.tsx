@@ -18,8 +18,20 @@ import {
   RotateCcwIcon,
   FileSpreadsheetIcon,
   SlidersHorizontal,
+  AwardIcon,
+  PlusIcon,
+  Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
+
+import {
+  type ExtracurricularItem,
+  EXTRACURRICULAR_PREDICATES,
+  OFFICIAL_EXTRACURRICULARS,
+  getExtracurricularNarrative,
+  normalizeEkskulName,
+} from "@/lib/extracurricular-constants"
+import { EKSKUL_ROSTER_DATA } from "@/lib/extracurricular-roster"
 
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -40,7 +52,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ReportCardPrintView } from "@/components/rapor/ReportCardPrintView"
+import { ReportCardPrintView, DEFAULT_KOKURIKULER_NOTE } from "@/components/rapor/ReportCardPrintView"
 import { ClassSettingsModal } from "@/components/rapor/ClassSettingsModal"
 import { DailyAssessmentsModal } from "@/components/rapor/DailyAssessmentsModal"
 import {
@@ -77,6 +89,7 @@ export default function RaporPage() {
   const [selectedInstitution, setSelectedInstitution] = React.useState<Institution>("SMPITA")
   const [selectedClass, setSelectedClass] = React.useState("7A")
   const [selectedSubject, setSelectedSubject] = React.useState("PAI")
+  const isCurrentSubjectDiniyah = isDiniyahSubject(selectedSubject)
   const [subjectCategoryFilter, setSubjectCategoryFilter] = React.useState<"all" | "umum" | "diniyah">("all")
   const [currentCp, setCurrentCp] = React.useState(() => getDefaultCpForSubject("PAI"))
   const [isSyncingSubjects, setIsSyncingSubjects] = React.useState(false)
@@ -163,7 +176,16 @@ export default function RaporPage() {
   const [homeroomNotes, setHomeroomNotes] = React.useState(
     "Alhamdulillah, semangat belajar dan tingkatkan terus prestasimu. Ta'at kepada guru dan orangtua serta istiqomah muraja'ah Al-Qur'an dan Hadits setiap hari."
   )
+  const [kokurikulerNotes, setKokurikulerNotes] = React.useState(DEFAULT_KOKURIKULER_NOTE)
   const [promotionDecision, setPromotionDecision] = React.useState("NAIK KE KELAS : VIII (DELAPAN)")
+  const [extracurriculars, setExtracurriculars] = React.useState<ExtracurricularItem[]>([
+    {
+      name: "Rohis",
+      score: "A",
+      description: getExtracurricularNarrative("Rohis", "A"),
+    },
+  ])
+  const [isSyncingEkskul, setIsSyncingEkskul] = React.useState(false)
 
   // Local overrides untuk nilai yang sedang diedit pengguna
   const [gradeOverrides, setGradeOverrides] = React.useState<Record<string, GradeOverride>>({})
@@ -258,21 +280,28 @@ export default function RaporPage() {
       let finalScore: number
       let isManualFinalScore: boolean
 
-      if (ov?.isManualFinalScore !== undefined) {
-        isManualFinalScore = ov.isManualFinalScore
-        finalScore = ov.finalScore ?? calculatedNar
-      } else if (ov?.finalScore !== undefined) {
-        isManualFinalScore = ov.finalScore !== calculatedNar
-        finalScore = ov.finalScore
-      } else if (hasComponentOverride) {
+      if (!isCurrentSubjectDiniyah) {
+        // Rapot Umum: Kunci nilai akhir, selalu gunakan kalkulasi rumus otomatis murni
         isManualFinalScore = false
         finalScore = calculatedNar
-      } else if (typeof g.finalScore === "number" && g.finalScore > 0 && g.finalScore !== calculatedNar) {
-        isManualFinalScore = true
-        finalScore = g.finalScore
       } else {
-        isManualFinalScore = false
-        finalScore = calculatedNar
+        // Rapot Diniyah: Fleksibel / hybrid (bisa override manual atau kalkulasi rumus)
+        if (ov?.isManualFinalScore !== undefined) {
+          isManualFinalScore = ov.isManualFinalScore
+          finalScore = ov.finalScore ?? calculatedNar
+        } else if (ov?.finalScore !== undefined) {
+          isManualFinalScore = ov.finalScore !== calculatedNar
+          finalScore = ov.finalScore
+        } else if (hasComponentOverride) {
+          isManualFinalScore = false
+          finalScore = calculatedNar
+        } else if (typeof g.finalScore === "number" && g.finalScore > 0 && g.finalScore !== calculatedNar) {
+          isManualFinalScore = true
+          finalScore = g.finalScore
+        } else {
+          isManualFinalScore = false
+          finalScore = calculatedNar
+        }
       }
 
       const predicate = getGradePredicate(finalScore)
@@ -295,7 +324,7 @@ export default function RaporPage() {
         competencyNarrative,
       }
     })
-  }, [gradesData, gradeOverrides])
+  }, [gradesData, gradeOverrides, isCurrentSubjectDiniyah])
 
   const effectiveSantriId = selectedSantriId || editableGrades[0]?.santriId || ""
 
@@ -327,7 +356,63 @@ export default function RaporPage() {
   const saveGradesMutation = useMutation(api.rapor.public.mutations.saveSubjectGrades)
   const pullGradesMutation = useMutation(api.rapor.public.mutations.pullGradesFromExamSession)
   const saveHomeroomMutation = useMutation(api.rapor.public.mutations.saveHomeroomAssessment)
+  const batchUpsertEkskulMutation = useMutation(api.rapor.public.mutations.batchUpsertExtracurriculars)
   const seedSubjectsMutation = useMutation(api.bank.public.mutations.seedDefaultSubjects)
+
+  // Sinkronisasi data asesmen wali kelas & ekskul saat santri aktif atau data kueri berubah
+  React.useEffect(() => {
+    if (singleReport?.homeroom) {
+      setSickDays(singleReport.homeroom.sickDays ?? 0)
+      setPermissionDays(singleReport.homeroom.permissionDays ?? 0)
+      setAbsentDays(singleReport.homeroom.absentDays ?? 0)
+      if (singleReport.homeroom.haditsTarget) setHaditsTarget(singleReport.homeroom.haditsTarget)
+      if (singleReport.homeroom.haditsAchievement) setHaditsAchievement(singleReport.homeroom.haditsAchievement)
+      if (singleReport.homeroom.homeroomNotes) setHomeroomNotes(singleReport.homeroom.homeroomNotes)
+      if (singleReport.homeroom.kokurikulerNotes !== undefined) {
+        setKokurikulerNotes(singleReport.homeroom.kokurikulerNotes || DEFAULT_KOKURIKULER_NOTE)
+      } else {
+        setKokurikulerNotes(DEFAULT_KOKURIKULER_NOTE)
+      }
+      if (singleReport.homeroom.promotionDecision) setPromotionDecision(singleReport.homeroom.promotionDecision)
+
+      if (singleReport.homeroom.extracurriculars && singleReport.homeroom.extracurriculars.length > 0) {
+        setExtracurriculars(
+          singleReport.homeroom.extracurriculars.map((e) => ({
+            name: e.name,
+            score: (e.score as "A" | "B" | "C") || "A",
+            description: e.description || getExtracurricularNarrative(e.name, e.score || "A"),
+          }))
+        )
+      } else {
+        // Fallback cerdas: cari ekskul pilihan dari roster Excel bila ada
+        const currentSantri = editableGrades.find((g) => g.santriId === effectiveSantriId)
+        const matchedRoster = currentSantri
+          ? EKSKUL_ROSTER_DATA.find((r) => {
+              const rName = r.studentName.toLowerCase().trim()
+              const sName = currentSantri.studentName.toLowerCase().trim()
+              return rName === sName || (sName.includes(rName) && rName.length > 5)
+            })
+          : null
+
+        const items: ExtracurricularItem[] = [
+          {
+            name: "Rohis",
+            score: "A",
+            description: getExtracurricularNarrative("Rohis", "A"),
+          },
+        ]
+        if (matchedRoster) {
+          const optName = normalizeEkskulName(matchedRoster.ekskul)
+          items.push({
+            name: optName,
+            score: "A",
+            description: getExtracurricularNarrative(optName, "A"),
+          })
+        }
+        setExtracurriculars(items)
+      }
+    }
+  }, [singleReport?.homeroom, effectiveSantriId, editableGrades])
 
   const handleSubjectChange = (newSubjectCode: string) => {
     setSelectedSubject(newSubjectCode)
@@ -367,6 +452,11 @@ export default function RaporPage() {
     field: "dailyScore" | "midtermScore" | "finalExamScore" | "finalScore",
     value: number
   ) => {
+    // Rapot Umum: Kunci nilai akhir, abaikan perubahan manual
+    if (field === "finalScore" && !isCurrentSubjectDiniyah) {
+      return
+    }
+
     const rawVal = isNaN(value) ? 0 : value
     const numericVal = Math.max(0, Math.min(100, Math.round(rawVal)))
     const currentGrade = editableGrades.find((g) => g.santriId === santriId)
@@ -506,20 +596,43 @@ export default function RaporPage() {
 
   const handleImportConfirm = async (
     results: ImportMatchResult[],
-    targetColumn: "PH" | "STS" | "SAS"
+    targetColumn: "PH" | "STS" | "SAS" = "STS"
   ) => {
     const gradesToSave = editableGrades.map((g) => {
       const importedRow = results.find((r) => r.santriId === g.santriId)
-      const importedValue = importedRow?.value ?? null
+      if (!importedRow) return g
+
+      let newDaily = g.dailyScore
+      let newMidterm = g.midtermScore
+      let newFinal = g.finalExamScore
+
+      // Jika format 3-in-1 (ph, sts, sas ada di importedRow)
+      if (importedRow.ph !== null && importedRow.ph !== undefined) {
+        newDaily = importedRow.ph
+      } else if (targetColumn === "PH" && importedRow.value !== null && importedRow.value !== undefined) {
+        newDaily = importedRow.value
+      }
+
+      if (importedRow.sts !== null && importedRow.sts !== undefined) {
+        newMidterm = importedRow.sts
+      } else if (targetColumn === "STS" && importedRow.value !== null && importedRow.value !== undefined) {
+        newMidterm = importedRow.value
+      }
+
+      if (importedRow.sas !== null && importedRow.sas !== undefined) {
+        newFinal = importedRow.sas
+      } else if (targetColumn === "SAS" && importedRow.value !== null && importedRow.value !== undefined) {
+        newFinal = importedRow.value
+      }
 
       return {
         santriId: g.santriId,
         nisn: g.nisn,
         studentName: g.studentName,
         institution: g.institution,
-        dailyScore: targetColumn === "PH" && importedValue !== null ? importedValue : g.dailyScore,
-        midtermScore: targetColumn === "STS" && importedValue !== null ? importedValue : g.midtermScore,
-        finalExamScore: targetColumn === "SAS" && importedValue !== null ? importedValue : g.finalExamScore,
+        dailyScore: newDaily,
+        midtermScore: newMidterm,
+        finalExamScore: newFinal,
         competencyNarrative: g.competencyNarrative,
       }
     })
@@ -533,11 +646,12 @@ export default function RaporPage() {
     })
 
     setGradeOverrides({})
-    const label = targetColumn === "PH" ? "PH / Tugas" : targetColumn === "STS" ? "STS / PTS" : "SAS / PAS"
     const matched = results.filter(
-      (r) => (r.status === "matched_nisn" || r.status === "matched_name") && r.value !== null
+      (r) =>
+        (r.status === "matched_nisn" || r.status === "matched_name") &&
+        (r.ph !== null || r.sts !== null || r.sas !== null || r.value !== null)
     ).length
-    toast.success(`Berhasil import ${matched} nilai ${label} dari Excel!`)
+    toast.success(`Berhasil import nilai dari Excel untuk ${matched} santri!`)
   }
 
   const handleSaveHomeroom = async () => {
@@ -561,15 +675,130 @@ export default function RaporPage() {
         sickDays,
         permissionDays,
         absentDays,
+        extracurriculars,
         haditsTarget,
         haditsAchievement,
         homeroomNotes,
+        kokurikulerNotes,
         promotionDecision,
       })
       toast.success(`Asesmen wali kelas untuk ${currentSantri.studentName} berhasil disimpan!`)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan asesmen wali kelas")
     }
+  }
+
+  const handleSyncAllExtracurricularsFromExcel = async () => {
+    if (editableGrades.length === 0) {
+      toast.error(`Belum ada data santri pada kelas ${selectedClass} untuk disinkronkan.`)
+      return
+    }
+
+    try {
+      setIsSyncingEkskul(true)
+      const batchItems = editableGrades.map((g) => {
+        const cleanedGName = g.studentName.toLowerCase().trim()
+        const matched = EKSKUL_ROSTER_DATA.find((r) => {
+          const cleanedRName = r.studentName.toLowerCase().trim()
+          return cleanedRName === cleanedGName || (cleanedGName.includes(cleanedRName) && cleanedRName.length > 5)
+        })
+
+        const items: ExtracurricularItem[] = [
+          {
+            name: "Rohis",
+            score: "A",
+            description: getExtracurricularNarrative("Rohis", "A"),
+          },
+        ]
+
+        if (matched) {
+          const optName = normalizeEkskulName(matched.ekskul)
+          items.push({
+            name: optName,
+            score: "A",
+            description: getExtracurricularNarrative(optName, "A"),
+          })
+        }
+
+        return {
+          santriId: g.santriId,
+          studentName: g.studentName,
+          className: selectedClass,
+          nisn: g.nisn,
+          institution: g.institution,
+          extracurriculars: items,
+        }
+      })
+
+      const res = await batchUpsertEkskulMutation({
+        academicYear,
+        semester,
+        items: batchItems,
+      })
+
+      const currentSantriItems = batchItems.find((b) => b.santriId === effectiveSantriId)
+      if (currentSantriItems) {
+        setExtracurriculars(currentSantriItems.extracurriculars)
+      }
+
+      toast.success(`Berhasil menyinkronkan nilai & narasi ekskul untuk ${res.count} santri di kelas ${selectedClass}!`)
+    } catch (err: unknown) {
+      console.error("[rapor] Gagal sinkronisasi ekskul:", err)
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(
+        msg.includes("Server Error")
+          ? "Gagal memproses sinkronisasi di server. Pastikan akun pengajar aktif dan coba lagi."
+          : msg
+      )
+    } finally {
+      setIsSyncingEkskul(false)
+    }
+  }
+
+  const handleEkskulScoreChange = (index: number, newScore: "A" | "B" | "C") => {
+    const updated = [...extracurriculars]
+    const current = updated[index]
+    if (!current) return
+    updated[index] = {
+      ...current,
+      score: newScore,
+      description: getExtracurricularNarrative(current.name, newScore),
+    }
+    setExtracurriculars(updated)
+  }
+
+  const handleEkskulDescChange = (index: number, newDesc: string) => {
+    const updated = [...extracurriculars]
+    if (!updated[index]) return
+    updated[index] = {
+      ...updated[index],
+      description: newDesc,
+    }
+    setExtracurriculars(updated)
+  }
+
+  const handleAddOptionalEkskul = (ekskulName: string) => {
+    if (extracurriculars.some((e) => e.name.toLowerCase() === ekskulName.toLowerCase())) {
+      toast.error(`Ekskul ${ekskulName} sudah terdaftar untuk santri ini.`)
+      return
+    }
+    const newItem: ExtracurricularItem = {
+      name: ekskulName,
+      score: "A",
+      description: getExtracurricularNarrative(ekskulName, "A"),
+    }
+    setExtracurriculars([...extracurriculars, newItem])
+    toast.success(`Berhasil menambahkan ekskul ${ekskulName}`)
+  }
+
+  const handleRemoveEkskul = (index: number) => {
+    if (extracurriculars[index]?.name.toLowerCase() === "rohis") {
+      toast.error("Ekskul Rohis adalah ekskul wajib dan tidak dapat dihapus.")
+      return
+    }
+    const updated = extracurriculars.filter((_, idx) => idx !== index)
+    setExtracurriculars(updated)
+    toast.success("Ekskul berhasil dihapus dari santri ini.")
   }
 
   const handlePrintSingle = () => {
@@ -1117,37 +1346,43 @@ export default function RaporPage() {
                         />
                       </td>
                       <td className="p-1.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={g.finalScore || ""}
-                            onChange={(e) => handleScoreChange(g.santriId, "finalScore", parseFloat(e.target.value))}
-                            className={cn(
-                              "h-7 w-16 text-center text-xs font-bold p-1 transition-colors",
-                              g.isManualFinalScore
-                                ? "border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-200"
-                                : "text-foreground font-bold"
+                        {isCurrentSubjectDiniyah ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={g.finalScore || ""}
+                              onChange={(e) => handleScoreChange(g.santriId, "finalScore", parseFloat(e.target.value))}
+                              className={cn(
+                                "h-7 w-16 text-center text-xs font-bold p-1 transition-colors",
+                                g.isManualFinalScore
+                                  ? "border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                                  : "text-foreground font-bold"
+                              )}
+                              title={
+                                g.isManualFinalScore
+                                  ? `Nilai manual override (Kalkulasi rumus: ${g.calculatedNar}). Klik tombol reset di samping untuk kembali ke otomatis.`
+                                  : "Kalkulasi otomatis (2*PH + STS + SAS) / 4. Anda juga bisa mengetik langsung nilai manual."
+                              }
+                            />
+                            {g.isManualFinalScore && (
+                              <button
+                                type="button"
+                                suppressHydrationWarning
+                                onClick={() => handleResetFinalScore(g.santriId)}
+                                className="size-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+                                title={`Kembalikan ke kalkulasi rumus otomatis (${g.calculatedNar})`}
+                              >
+                                <RotateCcwIcon className="size-3" />
+                              </button>
                             )}
-                            title={
-                              g.isManualFinalScore
-                                ? `Nilai manual override (Kalkulasi rumus: ${g.calculatedNar}). Klik tombol reset di samping untuk kembali ke otomatis.`
-                                : "Kalkulasi otomatis (2*PH + STS + SAS) / 4. Anda juga bisa mengetik langsung nilai manual."
-                            }
-                          />
-                          {g.isManualFinalScore && (
-                            <button
-                              type="button"
-                              suppressHydrationWarning
-                              onClick={() => handleResetFinalScore(g.santriId)}
-                              className="size-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
-                              title={`Kembalikan ke kalkulasi rumus otomatis (${g.calculatedNar})`}
-                            >
-                              <RotateCcwIcon className="size-3" />
-                            </button>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <span className="font-bold text-sm text-foreground">
+                            {g.finalScore}
+                          </span>
+                        )}
                       </td>
                       <td className="p-2 text-center">
                         <Badge
@@ -1187,12 +1422,28 @@ export default function RaporPage() {
         <TabsContent value="wali-kelas" className="space-y-4 pt-2">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm md:text-base">
-                Asesmen Karakter, Ekstrakurikuler, dan Ketidakhadiran Santri
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Pilih santri di kelas {selectedClass} untuk mengisi rekap kehadiran, capaian Hadits Arba&apos;in, dan catatan wali kelas.
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm md:text-base">
+                    Asesmen Karakter, Ekstrakurikuler, dan Ketidakhadiran Santri
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Pilih santri di kelas {selectedClass} untuk mengisi rekap kehadiran, capaian Hadits Arba&apos;in, ekstrakurikuler, dan catatan wali kelas.
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  suppressHydrationWarning
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSyncAllExtracurricularsFromExcel}
+                  disabled={isSyncingEkskul || editableGrades.length === 0}
+                  className="gap-2 text-xs border-emerald-600/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                >
+                  <RefreshCwIcon className={cn("size-3.5", isSyncingEkskul && "animate-spin")} />
+                  Sinkronkan Ekskul dari Excel
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {editableGrades.length === 0 && (
@@ -1305,6 +1556,155 @@ export default function RaporPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Penilaian Ekstrakurikuler (Wajib: Rohis, Pilihan: Sesuai Minat/Bakat) */}
+              <div className="p-3 bg-muted/40 rounded-lg border space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5">
+                      <AwardIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Penilaian Ekstrakurikuler (Wajib &amp; Pilihan)</span>
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Pilihan predikat A (Sangat Baik), B (Baik), C (Cukup). Mengubah predikat otomatis memperbarui deskripsi capaian baku.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      suppressHydrationWarning
+                      aria-label="Tambah Ekskul Pilihan"
+                      className="h-7 px-2 border rounded bg-background text-foreground text-[11px]"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleAddOptionalEkskul(e.target.value)
+                          e.target.value = ""
+                        }
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>
+                        + Tambah Ekskul Pilihan
+                      </option>
+                      {Object.keys(OFFICIAL_EXTRACURRICULARS)
+                        .filter((k) => k !== "Rohis")
+                        .map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  {extracurriculars.map((ekskul, idx) => {
+                    const isRohis = ekskul.name.toLowerCase() === "rohis"
+                    return (
+                      <div
+                        key={`${ekskul.name}-${idx}`}
+                        className="p-2.5 rounded-md border bg-background/80 dark:bg-background/40 space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-foreground">{ekskul.name}</span>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] px-1.5 py-0 h-4.5 font-medium",
+                                isRohis
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700"
+                                  : "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-700"
+                              )}
+                            >
+                              {isRohis ? "Ekskul Wajib" : "Ekskul Pilihan"}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label className="text-[11px] text-muted-foreground font-medium">Predikat:</label>
+                            <select
+                              suppressHydrationWarning
+                              aria-label={`Predikat ${ekskul.name}`}
+                              value={ekskul.score}
+                              onChange={(e) =>
+                                handleEkskulScoreChange(idx, e.target.value as "A" | "B" | "C")
+                              }
+                              className="h-7 w-32 px-2 border rounded font-semibold bg-background text-foreground text-xs"
+                            >
+                              {EXTRACURRICULAR_PREDICATES.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+
+                            {!isRohis && (
+                              <Button
+                                type="button"
+                                suppressHydrationWarning
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveEkskul(idx)}
+                                title="Hapus ekskul ini dari santri"
+                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2Icon className="size-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-0.5">
+                            Deskripsi Capaian Rapor ({ekskul.name}):
+                          </label>
+                          <textarea
+                            suppressHydrationWarning
+                            rows={2}
+                            value={ekskul.description}
+                            onChange={(e) => handleEkskulDescChange(idx, e.target.value)}
+                            className="w-full p-1.5 border rounded text-xs bg-background text-foreground resize-none leading-relaxed"
+                            placeholder={`Tulis deskripsi capaian ${ekskul.name}...`}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Catatan Kokurikuler (Penguatan Karakter & P5) */}
+              <div className="p-3 bg-muted/40 rounded-lg border space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5">
+                      <SparklesIcon className="size-3.5 text-amber-600 dark:text-amber-400" />
+                      <span>Catatan Kokurikuler (Penguatan Karakter &amp; P5)</span>
+                    </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Ditampilkan pada kotak Kokurikuler di lembar Rapor Umum SAS (Kurikulum Merdeka).
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setKokurikulerNotes(DEFAULT_KOKURIKULER_NOTE)}
+                    className="h-7 text-[11px] gap-1.5 self-start sm:self-auto"
+                    title="Kembalikan narasi bawaan"
+                  >
+                    <RotateCcwIcon className="size-3" />
+                    <span>Reset Narasi Baku</span>
+                  </Button>
+                </div>
+                <textarea
+                  value={kokurikulerNotes}
+                  onChange={(e) => setKokurikulerNotes(e.target.value)}
+                  rows={3}
+                  className="w-full p-2 border rounded-md text-xs bg-background text-foreground resize-none leading-relaxed"
+                  placeholder="Tuliskan catatan perkembangan keimanan, ketakwaan, adab, dan kokurikuler santri..."
+                />
               </div>
 
               {/* Catatan Motivasi Wali Kelas */}

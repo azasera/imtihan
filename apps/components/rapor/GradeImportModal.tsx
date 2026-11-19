@@ -1,7 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { UploadIcon, DownloadIcon, CheckCircle2Icon, AlertTriangleIcon, XCircleIcon, FileSpreadsheetIcon } from "lucide-react"
+import {
+  UploadIcon,
+  DownloadIcon,
+  CheckCircle2Icon,
+  AlertTriangleIcon,
+  XCircleIcon,
+  FileSpreadsheetIcon,
+  ArrowLeftIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -34,16 +42,8 @@ interface GradeImportModalProps {
   students: StudentRecord[]
   onConfirm: (
     results: ImportMatchResult[],
-    targetColumn: "PH" | "STS" | "SAS"
+    targetColumn?: "PH" | "STS" | "SAS"
   ) => Promise<void>
-}
-
-type TargetColumn = "PH" | "STS" | "SAS"
-
-const TARGET_COLUMN_LABELS: Record<TargetColumn, string> = {
-  PH: "PH / Tugas",
-  STS: "STS / PTS",
-  SAS: "SAS / PAS",
 }
 
 type ImportStep = "setup" | "preview"
@@ -58,7 +58,8 @@ export function GradeImportModal({
   onConfirm,
 }: GradeImportModalProps) {
   const [step, setStep] = React.useState<ImportStep>("setup")
-  const [targetColumn, setTargetColumn] = React.useState<TargetColumn>("STS")
+  const [targetColumn, setTargetColumn] = React.useState<"PH" | "STS" | "SAS">("STS")
+  const [isMultiColumnMode, setIsMultiColumnMode] = React.useState(true)
   const [isDragging, setIsDragging] = React.useState(false)
   const [isProcessing, setIsProcessing] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
@@ -74,6 +75,7 @@ export function GradeImportModal({
       setFileName("")
       setIsProcessing(false)
       setIsSaving(false)
+      setIsMultiColumnMode(true)
     }
   }, [open])
 
@@ -83,7 +85,7 @@ export function GradeImportModal({
       nisn: s.nisn,
       name: s.name,
     }))
-    downloadGradeTemplate(templateStudents, className, subjectCode, subjectName, targetColumn)
+    downloadGradeTemplate(templateStudents, className, subjectCode, subjectName)
     toast.success(`Template ${subjectCode} — ${className} berhasil diunduh!`)
   }
 
@@ -105,7 +107,12 @@ export function GradeImportModal({
         return
       }
 
-      const results = matchExcelToStudents(parsed, students)
+      const hasMulti = parsed.some(
+        (p) => p.ph !== null || p.sts !== null || p.sas !== null
+      )
+      setIsMultiColumnMode(hasMulti)
+
+      const results = matchExcelToStudents(parsed, students, targetColumn)
       setMatchResults(results)
       setStep("preview")
     } catch (err) {
@@ -118,7 +125,6 @@ export function GradeImportModal({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) await processFile(file)
-    // Reset input agar file yang sama bisa dipilih ulang
     e.target.value = ""
   }
 
@@ -148,18 +154,23 @@ export function GradeImportModal({
   }
 
   // Statistik preview
-  const matchedCount = matchResults.filter(
+  const matchedList = matchResults.filter(
     (r) => r.status === "matched_nisn" || r.status === "matched_name"
-  ).length
+  )
+  const matchedCount = matchedList.length
   const noValueCount = matchResults.filter((r) => r.status === "no_value").length
   const unmatchedCount = matchResults.filter((r) => r.status === "unmatched").length
   const readyToSave = filterMatchedResults(matchResults).length
+
+  const phCount = matchedList.filter((r) => r.ph !== null).length
+  const stsCount = matchedList.filter((r) => r.sts !== null).length
+  const sasCount = matchedList.filter((r) => r.sas !== null).length
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             <FileSpreadsheetIcon className="size-5 text-emerald-600" />
             Import Nilai dari Excel
           </DialogTitle>
@@ -171,56 +182,45 @@ export function GradeImportModal({
         {/* ── STEP 1: Setup ── */}
         {step === "setup" && (
           <div className="space-y-4 py-2">
-            {/* Pilih kolom target */}
-            <div>
-              <p className="text-xs font-semibold mb-2 text-foreground">
-                1. Nilai ini untuk kolom apa?
-              </p>
-              <div className="flex gap-2">
-                {(["PH", "STS", "SAS"] as TargetColumn[]).map((col) => (
-                  <button
-                    key={col}
-                    type="button"
-                    onClick={() => setTargetColumn(col)}
-                    className={cn(
-                      "flex-1 py-2 px-3 rounded-lg border text-xs font-medium transition-all",
-                      targetColumn === col
-                        ? "bg-emerald-700 text-white border-emerald-800"
-                        : "bg-background text-muted-foreground border-border hover:bg-muted"
-                    )}
-                  >
-                    {TARGET_COLUMN_LABELS[col]}
-                  </button>
-                ))}
+            {/* Unduh Template 3-in-1 */}
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                    Template Excel 3-in-1 (PH, STS, SAS)
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Satu file template memuat kolom No, NISN, Nama Santri, PH, STS, dan SAS.
+                    Unduh template, isi nilai pada kolom terkait, lalu unggah kembali.
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px] text-emerald-700 dark:text-emerald-300 border-emerald-500/40 shrink-0">
+                  Format 3 Nilai
+                </Badge>
               </div>
-            </div>
 
-            {/* Unduh Template */}
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 space-y-2">
-              <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                2. (Opsional) Unduh Template
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                Template berisi daftar {students.length} santri kelas {className}. Isi kolom nilai,
-                lalu upload kembali.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleDownloadTemplate}
-                className="gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
-              >
-                <DownloadIcon className="size-3.5" />
-                Unduh Template Kelas {className} — {subjectCode}.xlsx
-              </Button>
+              <div className="pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadTemplate}
+                  className="gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10"
+                >
+                  <DownloadIcon className="size-3.5" />
+                  Unduh Template Kelas {className} — {subjectCode}.xlsx
+                </Button>
+              </div>
             </div>
 
             {/* Drop zone */}
             <div>
-              <p className="text-xs font-semibold mb-2 text-foreground">3. Upload File Nilai</p>
+              <p className="text-xs font-semibold mb-2 text-foreground">Upload File Nilai</p>
               <div
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setIsDragging(true)
+                }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
@@ -234,7 +234,7 @@ export function GradeImportModal({
                 {isProcessing ? (
                   <>
                     <FileSpreadsheetIcon className="size-8 text-emerald-500 animate-pulse" />
-                    <p className="text-xs text-muted-foreground">Membaca file...</p>
+                    <p className="text-xs text-muted-foreground">Membaca file Excel...</p>
                   </>
                 ) : (
                   <>
@@ -244,7 +244,7 @@ export function GradeImportModal({
                         Klik untuk pilih file, atau seret ke sini
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Mendukung: .xlsx, .xls, .csv
+                        Mendukung file Excel (.xlsx, .xls, .csv)
                       </p>
                     </div>
                   </>
@@ -265,37 +265,56 @@ export function GradeImportModal({
         {/* ── STEP 2: Preview ── */}
         {step === "preview" && (
           <div className="space-y-3 py-2">
-            {/* Ringkasan */}
-            <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/40 rounded-lg border text-xs">
-              <span className="text-muted-foreground">File:</span>
-              <span className="font-medium truncate max-w-48">{fileName}</span>
-              <span className="text-muted-foreground ml-auto">Kolom target:</span>
-              <Badge variant="outline" className="text-emerald-700 dark:text-emerald-400 border-emerald-500/40">
-                {TARGET_COLUMN_LABELS[targetColumn]}
+            {/* Ringkasan File */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-muted/40 rounded-lg border text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileSpreadsheetIcon className="size-4 text-emerald-600 shrink-0" />
+                <span className="font-medium truncate max-w-xs">{fileName}</span>
+              </div>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px]",
+                  isMultiColumnMode
+                    ? "text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                    : "text-blue-700 dark:text-blue-300 border-blue-500/40"
+                )}
+              >
+                {isMultiColumnMode ? "Format 3 Nilai Sekaligus (PH, STS, SAS)" : "Format Nilai Tunggal"}
               </Badge>
             </div>
 
             {/* Statistik */}
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20">
                 <CheckCircle2Icon className="size-4 text-emerald-600 shrink-0" />
                 <div>
-                  <p className="font-bold text-emerald-800 dark:text-emerald-300">{matchedCount} cocok</p>
-                  <p className="text-[10px] text-muted-foreground">Siap disimpan: {readyToSave}</p>
+                  <p className="font-bold text-emerald-800 dark:text-emerald-300">
+                    {matchedCount} Santri Cocok
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {isMultiColumnMode
+                      ? `PH: ${phCount} • STS: ${stsCount} • SAS: ${sasCount} terisi`
+                      : `Siap disimpan: ${readyToSave}`}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-500/20">
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-500/20">
                 <AlertTriangleIcon className="size-4 text-amber-600 shrink-0" />
                 <div>
-                  <p className="font-bold text-amber-800 dark:text-amber-300">{noValueCount} tanpa nilai</p>
-                  <p className="text-[10px] text-muted-foreground">Tidak akan disimpan</p>
+                  <p className="font-bold text-amber-800 dark:text-amber-300">
+                    {noValueCount} Tanpa Nilai
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">Tidak mengubah nilai eksisting</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-500/20">
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-500/20">
                 <XCircleIcon className="size-4 text-red-500 shrink-0" />
                 <div>
-                  <p className="font-bold text-red-800 dark:text-red-300">{unmatchedCount} tidak cocok</p>
-                  <p className="text-[10px] text-muted-foreground">Dilewati</p>
+                  <p className="font-bold text-red-800 dark:text-red-300">
+                    {unmatchedCount} Tidak Cocok
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">Dilewati (di luar kelas ini)</p>
                 </div>
               </div>
             </div>
@@ -308,8 +327,10 @@ export function GradeImportModal({
                     <th className="p-2 w-10 text-center">No</th>
                     <th className="p-2 w-28">NISN</th>
                     <th className="p-2 min-w-40">Nama Santri</th>
-                    <th className="p-2 w-20 text-center">Nilai</th>
-                    <th className="p-2 w-28 text-center">Status</th>
+                    <th className="p-2 w-16 text-center">PH</th>
+                    <th className="p-2 w-16 text-center">STS</th>
+                    <th className="p-2 w-16 text-center">SAS</th>
+                    <th className="p-2 w-24 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -333,26 +354,44 @@ export function GradeImportModal({
                         )}
                       </td>
                       <td className="p-2 text-center font-bold">
-                        {r.value !== null ? r.value : "—"}
+                        {r.ph !== null ? r.ph : "—"}
+                      </td>
+                      <td className="p-2 text-center font-bold">
+                        {r.sts !== null ? r.sts : "—"}
+                      </td>
+                      <td className="p-2 text-center font-bold">
+                        {r.sas !== null ? r.sas : "—"}
                       </td>
                       <td className="p-2 text-center">
                         {r.status === "matched_nisn" && (
-                          <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-emerald-700 border-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20"
+                          >
                             ✓ NISN
                           </Badge>
                         )}
                         {r.status === "matched_name" && (
-                          <Badge variant="outline" className="text-[10px] text-blue-700 border-blue-400 bg-blue-50/50 dark:bg-blue-950/20">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-blue-700 border-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
+                          >
                             ✓ Nama
                           </Badge>
                         )}
                         {r.status === "no_value" && (
-                          <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-400 bg-amber-50/50">
-                            ⚠ Tanpa Nilai
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-amber-700 border-amber-400 bg-amber-50/50"
+                          >
+                            Tanpa Nilai
                           </Badge>
                         )}
                         {r.status === "unmatched" && (
-                          <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-muted-foreground border-border"
+                          >
                             — Dilewati
                           </Badge>
                         )}
@@ -371,13 +410,19 @@ export function GradeImportModal({
               onClick={() => setStep("setup")}
               className="text-xs text-muted-foreground gap-1.5"
             >
-              ← Ganti File / Kolom Target
+              <ArrowLeftIcon className="size-3.5" />
+              Ganti File
             </Button>
           </div>
         )}
 
         <DialogFooter className="gap-2 mt-2">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            className="text-xs"
+          >
             Batal
           </Button>
           {step === "preview" && (
@@ -395,7 +440,7 @@ export function GradeImportModal({
               ) : (
                 <>
                   <CheckCircle2Icon className="size-3.5" />
-                  Simpan {readyToSave} Nilai {TARGET_COLUMN_LABELS[targetColumn]}
+                  Simpan Nilai ({readyToSave} Santri)
                 </>
               )}
             </Button>

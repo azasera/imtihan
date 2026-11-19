@@ -295,6 +295,7 @@ export default defineSchema({
     haditsAchievement: v.optional(v.string()),
     tahfidzNotes: v.optional(v.string()),
     homeroomNotes: v.optional(v.string()),
+    kokurikulerNotes: v.optional(v.string()),
     promotionDecision: v.optional(v.string()),
     updatedBy: v.string(),
     createdAt: v.number(),

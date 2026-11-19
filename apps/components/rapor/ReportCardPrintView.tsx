@@ -52,6 +52,7 @@ export interface ReportCardPrintViewProps {
     haditsAchievement?: string
     tahfidzNotes?: string
     homeroomNotes?: string
+    kokurikulerNotes?: string
     promotionDecision?: string
     parentResponse?: string
   }
@@ -69,6 +70,9 @@ export interface ReportCardPrintViewProps {
  * Seluruh styling menggunakan palet warna hex standar (#000000, #E0E0E0, #ffffff)
  * untuk mencegah galat unsupported color function lab/oklch pada canvas/peramban.
  */
+export const DEFAULT_KOKURIKULER_NOTE =
+  "Ananda sudah baik dalam keimanan dan ketakwaan terhadap Tuhan Yang Maha Esa, tercermin dari sikap religiusnya seperti melaksanakan sholat berjamaah di masjid, melakukan muroja'ah dan menghafal Al-Qur'an, serta menjaga adab terhadap teman dan guru."
+
 function formatNiyLabel(val?: string): string {
   if (!val) return "NIY. ........................................"
   const clean = val.replace(/^NIY\.?\s*/i, "").trim()
@@ -107,12 +111,11 @@ export function ReportCardPrintView({
       : "E/F"
 
   const defaultExtracurriculars: Array<{ name: string; score: string; description?: string }> = [
-    { name: "Tahsin", score: "A", description: "Baik dalam menerapkan hukum nun mati, tanwin dan makhrajul huruf" },
-    { name: "Rohis", score: "-", description: "-" },
-    { name: "Pramuka", score: "-", description: "-" },
-    { name: "Matematika", score: "-", description: "-" },
-    { name: "Ilmu Pengetahuan Alam", score: "-", description: "-" },
-    { name: "Ilmu Pengetahuan Sosial", score: "-", description: "-" },
+    {
+      name: "Rohis",
+      score: "A",
+      description: "Sangat aktif, bersemangat, dan menunjukkan adab yang mulia serta istiqomah dalam seluruh kegiatan pembinaan kerohanian Islam.",
+    },
   ]
 
   const activeExtracurriculars =
@@ -496,7 +499,7 @@ export function ReportCardPrintView({
             </div>
             <div style={{ padding: "6px 8px", lineHeight: "1.45", color: "#000000" }}>
               {/* Penguatan Karakter Profil Pelajar Pancasila */}
-              Ananda sudah baik dalam keimanan dan ketakwaan terhadap Tuhan Yang Maha Esa, tercermin dari sikap religiusnya seperti melaksanakan sholat berjamaah di masjid, melakukan muroja&apos;ah dan menghafal Al-Qur&apos;an, serta menjaga adab terhadap teman dan guru.
+              {homeroom?.kokurikulerNotes || DEFAULT_KOKURIKULER_NOTE}
             </div>
           </div>
 

@@ -19,7 +19,7 @@ describe("Komponen & Tampilan E-Rapor At-Tauhid", () => {
     assert.equal(fs.existsSync(pagePath), true, "rapor/page.tsx harus ada")
   })
 
-  it("memverifikasi KOP SiPAKSa mencantumkan Yayasan dan Lembaga resmi secara dinamis", () => {
+  it("memverifikasi KOP SiPAKSa mencantumkan Lembaga resmi secara dinamis tanpa baris yayasan & kota", () => {
     const letterheadSource = fs.readFileSync(
       path.join(APPS_ROOT, "components/rapor/RaporLetterhead.tsx"),
       "utf8"
@@ -28,9 +28,8 @@ describe("Komponen & Tampilan E-Rapor At-Tauhid", () => {
     // Memastikan KOP memanggil getInstitutionHeader dan getInstitutionLogos
     assert.match(letterheadSource, /getInstitutionHeader/)
     assert.match(letterheadSource, /getInstitutionLogos/)
-    assert.match(letterheadSource, /header\.foundation/)
+    assert.doesNotMatch(letterheadSource, /header\.foundation/)
     assert.match(letterheadSource, /header\.institutionName/)
-    assert.match(letterheadSource, /header\.city/)
     assert.match(letterheadSource, /logos\.leftLogo/)
     assert.match(letterheadSource, /logos\.rightLogo/)
   })
@@ -126,6 +125,9 @@ describe("Komponen & Tampilan E-Rapor At-Tauhid", () => {
     const filesToCheck = [
       path.join(APPS_ROOT, "lib/rapor-utils.ts"),
       path.join(APPS_ROOT, "lib/rapor-pdf.ts"),
+      path.join(APPS_ROOT, "lib/rapor-template.ts"),
+      path.join(APPS_ROOT, "lib/excel-grade-import.ts"),
+      path.join(APPS_ROOT, "components/rapor/GradeImportModal.tsx"),
       path.join(APPS_ROOT, "components/rapor/RaporLetterhead.tsx"),
       path.join(APPS_ROOT, "components/rapor/ReportCardPrintView.tsx"),
       path.join(APPS_ROOT, "app/(main)/rapor/page.tsx"),
@@ -162,5 +164,28 @@ describe("Komponen & Tampilan E-Rapor At-Tauhid", () => {
         )
       }
     }
+  })
+
+  it("memverifikasi template import nilai dan modal mendukung format 3-in-1 (No, NISN, Nama Santri, PH, STS, SAS)", () => {
+    const templateSource = fs.readFileSync(
+      path.join(APPS_ROOT, "lib/rapor-template.ts"),
+      "utf8"
+    )
+    const modalSource = fs.readFileSync(
+      path.join(APPS_ROOT, "components/rapor/GradeImportModal.tsx"),
+      "utf8"
+    )
+
+    // Template harus memuat 6 kolom persis sesuai gambar
+    assert.match(templateSource, /\["No",\s*"NISN",\s*"Nama Santri",\s*"PH",\s*"STS",\s*"SAS"\]/)
+    // Memastikan perlakuan format string pada sel NISN untuk menjaga angka nol di depan
+    assert.match(templateSource, /cellRef/)
+    assert.match(templateSource, /ws\[cellRef\]\.t\s*=\s*"s"/)
+
+    // Modal harus menampilkan pratinjau kolom PH, STS, SAS
+    assert.match(modalSource, /<th[^>]*>PH<\/th>/)
+    assert.match(modalSource, /<th[^>]*>STS<\/th>/)
+    assert.match(modalSource, /<th[^>]*>SAS<\/th>/)
+    assert.match(modalSource, /Format 3 Nilai/)
   })
 })
