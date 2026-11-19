@@ -106,4 +106,43 @@ describe("Modul Terpusat Manajemen Kelompok & Anggota Ekstrakurikuler", () => {
     assert.match(mutationsSource, /Ekskul Rohis adalah ekskul wajib dan tidak dapat dihapus/)
     assert.match(mutationsSource, /Ekskul Rohis adalah ekskul wajib dan tidak dapat dipindahkan/)
   })
+
+  it("memverifikasi skema dan mutasi mendukung multi-pembina (coaches array) dengan fallback kompatibel", () => {
+    const schemaSource = fs.readFileSync(
+      path.join(APPS_ROOT, "convex/schema.ts"),
+      "utf8"
+    )
+    const mutationsSource = fs.readFileSync(
+      path.join(APPS_ROOT, "convex/extracurricular/public/mutations.ts"),
+      "utf8"
+    )
+
+    // Skema memiliki coaches array of object
+    assert.match(schemaSource, /coaches:\s*v\.optional\(\s*v\.array\(\s*v\.object\(\{[\s\S]*?name:\s*v\.string\(\)/)
+    // Mutasi updateGroupCoach menerima coaches
+    assert.match(mutationsSource, /coaches:\s*v\.optional\(\s*v\.array\(/)
+    assert.match(mutationsSource, /coaches\.map\(/)
+  })
+
+  it("memverifikasi EditCoachModal dan header kelompok bebas dari NIY dan mendukung multi-pembina", () => {
+    const modalSource = fs.readFileSync(
+      path.join(APPS_ROOT, "components/ekstrakurikuler/EditCoachModal.tsx"),
+      "utf8"
+    )
+    const pageSource = fs.readFileSync(
+      path.join(APPS_ROOT, "app/(main)/ekstrakurikuler/page.tsx"),
+      "utf8"
+    )
+
+    // EditCoachModal mengelola daftar pembina dan tidak memiliki input NIY
+    assert.match(modalSource, /coaches\.map/)
+    assert.match(modalSource, /handleAddCoach/)
+    assert.match(modalSource, /handleRemoveCoach/)
+    assert.doesNotMatch(modalSource, /Nomor Induk Yayasan/)
+    assert.doesNotMatch(modalSource, /coachNiy/)
+
+    // Header ekskul menampilkan badge pembina dan bebas dari format (NIY: ...)
+    assert.match(pageSource, /selectedGroup\.coaches/)
+    assert.doesNotMatch(pageSource, /NIY:\s*\$\{selectedGroup\.coachNiy\}/)
+  })
 })

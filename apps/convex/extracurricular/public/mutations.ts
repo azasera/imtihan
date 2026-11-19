@@ -538,7 +538,15 @@ export const updateMemberAssessment = mutation({
 export const updateGroupCoach = mutation({
   args: {
     groupId: v.id("extracurricularGroups"),
-    coachName: v.string(),
+    coaches: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          role: v.optional(v.string()),
+        })
+      )
+    ),
+    coachName: v.optional(v.string()),
     coachNiy: v.optional(v.string()),
     description: v.optional(v.string()),
   },
@@ -548,9 +556,21 @@ export const updateGroupCoach = mutation({
     const group = await ctx.db.get(args.groupId)
     if (!group) throw new Error("Kelompok ekskul tidak ditemukan.")
 
+    let coaches = args.coaches
+    let coachName = args.coachName?.trim()
+
+    if (coaches && coaches.length > 0) {
+      coachName = coaches.map((c) => (c.role ? `${c.name} (${c.role})` : c.name)).join(", ")
+    } else if (coachName) {
+      coaches = [{ name: coachName }]
+    } else if (coaches && coaches.length === 0) {
+      coachName = undefined
+    }
+
     const now = Date.now()
     await ctx.db.patch(args.groupId, {
-      coachName: args.coachName.trim() || undefined,
+      coaches,
+      coachName: coachName || undefined,
       coachNiy: args.coachNiy?.trim() || undefined,
       description: args.description?.trim() || group.description,
       updatedBy: userName,

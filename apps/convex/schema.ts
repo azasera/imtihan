@@ -326,6 +326,14 @@ export default defineSchema({
     code: v.string(), // misal "Rohis", "Futsal", "Panahan"
     name: v.string(), // Nama resmi kelompok ekskul
     category: v.union(v.literal("wajib"), v.literal("pilihan")),
+    coaches: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          role: v.optional(v.string()),
+        })
+      )
+    ),
     coachName: v.optional(v.string()),
     coachNiy: v.optional(v.string()),
     genderRestriction: v.optional(
