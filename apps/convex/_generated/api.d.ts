@@ -20,6 +20,9 @@ import type * as examSession_private_tokenCode from "../examSession/private/toke
 import type * as examSession_private_tokenRotation from "../examSession/private/tokenRotation.js";
 import type * as examSession_public_mutations from "../examSession/public/mutations.js";
 import type * as examSession_public_queries from "../examSession/public/queries.js";
+import type * as extracurricular_private_helpers from "../extracurricular/private/helpers.js";
+import type * as extracurricular_public_mutations from "../extracurricular/public/mutations.js";
+import type * as extracurricular_public_queries from "../extracurricular/public/queries.js";
 import type * as http from "../http.js";
 import type * as model_auth from "../model/auth.js";
 import type * as model_institutions from "../model/institutions.js";
@@ -51,6 +54,9 @@ declare const fullApi: ApiFromModules<{
   "examSession/private/tokenRotation": typeof examSession_private_tokenRotation;
   "examSession/public/mutations": typeof examSession_public_mutations;
   "examSession/public/queries": typeof examSession_public_queries;
+  "extracurricular/private/helpers": typeof extracurricular_private_helpers;
+  "extracurricular/public/mutations": typeof extracurricular_public_mutations;
+  "extracurricular/public/queries": typeof extracurricular_public_queries;
   http: typeof http;
   "model/auth": typeof model_auth;
   "model/institutions": typeof model_institutions;

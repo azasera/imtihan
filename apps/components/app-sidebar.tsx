@@ -30,6 +30,7 @@ import {
   MonitorIcon,
   GraduationCapIcon,
   HelpCircleIcon,
+  TrophyIcon,
 } from "lucide-react"
 
 const data = {
@@ -73,6 +74,11 @@ const data = {
       title: "E-Rapor",
       url: "/rapor",
       icon: <GraduationCapIcon />,
+    },
+    {
+      title: "Ekstrakurikuler",
+      url: "/ekstrakurikuler",
+      icon: <TrophyIcon />,
     },
     {
       title: "Data Santri",

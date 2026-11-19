@@ -204,3 +204,38 @@ export function getExtracurricularNarrative(
   }
   return `Aktif dan terampil dalam mengikuti seluruh rangkaian kegiatan dan latihan ${ekskulName} dengan baik.`
 }
+
+export const OFFICIAL_CLASSES = [
+  "7A",
+  "7B",
+  "7C",
+  "8A",
+  "8B",
+  "8C",
+  "8D",
+  "9A",
+  "9B",
+  "9C",
+  "10A",
+  "10B",
+  "11A",
+  "11B",
+  "12A",
+  "12B",
+  "MTA 1",
+  "MTA 2",
+  "MTA 3",
+] as const
+
+export function formatClassDisplay(className: string): string {
+  if (!className) return ""
+  return className
+    .trim()
+    .replace(/^KELAS\s*/i, "")
+    .replace(/^VII\s*([A-D])/i, "7$1")
+    .replace(/^VIII\s*([A-D])/i, "8$1")
+    .replace(/^IX\s*([A-D])/i, "9$1")
+    .replace(/^X\s*([A-B])/i, "10$1")
+    .replace(/^XI\s*([A-B])/i, "11$1")
+    .replace(/^XII\s*([A-B])/i, "12$1")
+}

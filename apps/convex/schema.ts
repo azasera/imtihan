@@ -320,4 +320,53 @@ export default defineSchema({
   })
     .index("by_class_and_period", ["className", "academicYear", "semester"])
     .index("by_period", ["academicYear", "semester"]),
+
+  // Kelompok Ekstrakurikuler (Modul Terpusat Ekskul & Pembina)
+  extracurricularGroups: defineTable({
+    code: v.string(), // misal "Rohis", "Futsal", "Panahan"
+    name: v.string(), // Nama resmi kelompok ekskul
+    category: v.union(v.literal("wajib"), v.literal("pilihan")),
+    coachName: v.optional(v.string()),
+    coachNiy: v.optional(v.string()),
+    genderRestriction: v.optional(
+      v.union(v.literal("all"), v.literal("ikhwan"), v.literal("akhwat"))
+    ),
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  })
+    .index("by_period", ["academicYear", "semester"])
+    .index("by_code_and_period", ["code", "academicYear", "semester"]),
+
+  // Anggota / Roster Peserta Ekstrakurikuler Lintas Kelas
+  extracurricularEnrollments: defineTable({
+    groupId: v.id("extracurricularGroups"),
+    groupCode: v.string(),
+    groupName: v.string(),
+    santriId: v.string(),
+    nisn: v.string(),
+    studentName: v.string(),
+    className: v.string(),
+    gender: v.optional(v.string()),
+    institution: v.optional(
+      v.union(v.literal("SMPITA"), v.literal("SMAITA"), v.literal("MTA"))
+    ),
+    academicYear: v.string(),
+    semester: v.union(v.literal(1), v.literal(2)),
+    score: v.union(v.literal("A"), v.literal("B"), v.literal("C")),
+    description: v.string(),
+    status: v.union(v.literal("active"), v.literal("transferred"), v.literal("dropped")),
+    transferredToGroupCode: v.optional(v.string()),
+    updatedBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_group_and_status", ["groupId", "status"])
+    .index("by_santri_and_period", ["santriId", "academicYear", "semester"])
+    .index("by_santri_and_group", ["santriId", "groupCode", "academicYear", "semester"])
+    .index("by_period_and_status", ["academicYear", "semester", "status"]),
 })

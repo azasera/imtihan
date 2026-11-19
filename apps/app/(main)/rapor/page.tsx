@@ -21,6 +21,10 @@ import {
   AwardIcon,
   PlusIcon,
   Trash2Icon,
+  Maximize2Icon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CopyCheckIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -40,6 +44,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { GradeImportModal } from "@/components/rapor/GradeImportModal"
@@ -157,6 +162,7 @@ export default function RaporPage() {
   const [isImportModalOpen, setIsImportModalOpen] = React.useState(false)
   const [isClassSettingsModalOpen, setIsClassSettingsModalOpen] = React.useState(false)
   const [isDailyAssessmentsModalOpen, setIsDailyAssessmentsModalOpen] = React.useState(false)
+  const [narrativeModalSantriId, setNarrativeModalSantriId] = React.useState<string | null>(null)
 
   // Santri terpilih untuk cetak rapor & opsi periode asesmen
   const [selectedSantriId, setSelectedSantriId] = React.useState<string>("")
@@ -511,6 +517,50 @@ export default function RaporPage() {
         competencyNarrative: text,
       },
     }))
+  }
+
+  const activeNarrativeIndex = narrativeModalSantriId
+    ? editableGrades.findIndex((g) => g.santriId === narrativeModalSantriId)
+    : -1
+  const activeNarrativeStudent =
+    activeNarrativeIndex >= 0 ? editableGrades[activeNarrativeIndex] : null
+  const canPrevNarrative = activeNarrativeIndex > 0
+  const canNextNarrative =
+    activeNarrativeIndex >= 0 && activeNarrativeIndex < editableGrades.length - 1
+
+  const handlePrevNarrative = () => {
+    if (canPrevNarrative) {
+      setNarrativeModalSantriId(editableGrades[activeNarrativeIndex - 1].santriId)
+    }
+  }
+
+  const handleNextNarrative = () => {
+    if (canNextNarrative) {
+      setNarrativeModalSantriId(editableGrades[activeNarrativeIndex + 1].santriId)
+    }
+  }
+
+  const handleApplyNarrativeToSamePredicate = (
+    predicate: string,
+    narrativeText: string
+  ) => {
+    if (!predicate || !narrativeText.trim()) return
+    const matchingSantri = editableGrades.filter((g) => g.predicate === predicate)
+    if (matchingSantri.length === 0) return
+
+    setGradeOverrides((prev) => {
+      const next = { ...prev }
+      matchingSantri.forEach((s) => {
+        next[s.santriId] = {
+          ...next[s.santriId],
+          competencyNarrative: narrativeText,
+        }
+      })
+      return next
+    })
+    toast.success(
+      `Narasi disalin ke ${matchingSantri.length} santri berpredikat ${predicate}`
+    )
   }
 
   const handleSaveGrades = async () => {
@@ -1264,7 +1314,7 @@ export default function RaporPage() {
                   <th className="p-2 w-20 text-center">SAS (PAS)</th>
                   <th className="p-2 w-28 text-center">Nilai Akhir</th>
                   <th className="p-2 w-16 text-center">Predikat</th>
-                  <th className="p-2 min-w-64">Narasi Capaian Kompetensi</th>
+                  <th className="p-2 min-w-80">Narasi Capaian Kompetensi</th>
                 </tr>
               </thead>
               <tbody>
@@ -1401,12 +1451,25 @@ export default function RaporPage() {
                         </Badge>
                       </td>
                       <td className="p-1.5">
-                        <Input
-                          value={g.competencyNarrative}
-                          onChange={(e) => handleNarrativeChange(g.santriId, e.target.value)}
-                          placeholder="Deskripsi capaian pembelajaran..."
-                          className="h-7 text-xs"
-                        />
+                        <div className="flex items-start gap-1">
+                          <Textarea
+                            value={g.competencyNarrative || ""}
+                            onChange={(e) => handleNarrativeChange(g.santriId, e.target.value)}
+                            placeholder="Deskripsi capaian pembelajaran..."
+                            className="min-h-[46px] text-xs leading-relaxed py-1.5 px-2 resize-y rounded-md"
+                            rows={2}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setNarrativeModalSantriId(g.santriId)}
+                            className="size-7 shrink-0 text-muted-foreground hover:text-foreground mt-0.5"
+                            title="Perbesar ruang ketik narasi"
+                          >
+                            <Maximize2Icon className="size-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -2261,6 +2324,168 @@ export default function RaporPage() {
         }))}
         onSave={handleSaveDailyAssessments}
       />
+
+      <Dialog
+        open={Boolean(narrativeModalSantriId)}
+        onOpenChange={(open) => {
+          if (!open) setNarrativeModalSantriId(null)
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {activeNarrativeStudent && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center justify-between gap-3 pr-6">
+                  <DialogTitle className="text-base font-semibold">
+                    Sunting Narasi Capaian Kompetensi
+                  </DialogTitle>
+                  <Badge variant="outline" className="text-xs font-mono">
+                    {activeNarrativeIndex + 1} / {editableGrades.length}
+                  </Badge>
+                </div>
+                <DialogDescription className="text-xs">
+                  {activeNarrativeStudent.studentName} ({activeNarrativeStudent.nisn || "Tanpa NISN"}) &bull; {selectedSubject} &bull; Kelas {selectedClass}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                {/* Info Capaian Santri & Navigasi */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-muted/40 rounded-lg border text-xs">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <span className="text-muted-foreground">Nilai Akhir:</span>{" "}
+                      <span className="font-bold text-foreground">
+                        {activeNarrativeStudent.finalScore}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Predikat:</span>{" "}
+                      <Badge
+                        variant={
+                          activeNarrativeStudent.predicate === "A"
+                            ? "default"
+                            : activeNarrativeStudent.predicate === "B"
+                              ? "secondary"
+                              : activeNarrativeStudent.predicate === "C"
+                                ? "outline"
+                                : "destructive"
+                        }
+                        className="font-bold text-[10px] ml-1"
+                      >
+                        {activeNarrativeStudent.predicate}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePrevNarrative}
+                      disabled={!canPrevNarrative}
+                      className="h-7 px-2 text-xs gap-1"
+                      title="Santri Sebelumnya"
+                    >
+                      <ChevronLeftIcon className="size-3.5" />
+                      Sebelumnya
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNextNarrative}
+                      disabled={!canNextNarrative}
+                      className="h-7 px-2 text-xs gap-1"
+                      title="Santri Selanjutnya"
+                    >
+                      Selanjutnya
+                      <ChevronRightIcon className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Textarea Lega */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-foreground">Teks Narasi Capaian</span>
+                    <span className="font-normal text-muted-foreground">
+                      {(activeNarrativeStudent.competencyNarrative || "").length} karakter
+                    </span>
+                  </div>
+                  <Textarea
+                    value={activeNarrativeStudent.competencyNarrative || ""}
+                    onChange={(e) =>
+                      handleNarrativeChange(activeNarrativeStudent.santriId, e.target.value)
+                    }
+                    placeholder="Tuliskan deskripsi capaian pembelajaran santri ini..."
+                    rows={5}
+                    className="min-h-[130px] text-xs md:text-sm leading-relaxed p-3 rounded-lg"
+                  />
+                </div>
+
+                {/* Prasetel Rekomendasi Cepat */}
+                <div className="space-y-2 rounded-lg border p-3 bg-muted/20">
+                  <p className="text-[11px] font-semibold text-muted-foreground">
+                    Prasetel Kalimat Rekomendasi (berdasarkan Capaian Pembelajaran aktif):
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["Sangat baik", "Baik", "Cukup", "Perlu ditingkatkan"].map((level) => {
+                      const cp = currentCp.trim() || getDefaultCpForSubject(selectedSubject)
+                      const presetText = `${level} dalam ${cp}`
+                      return (
+                        <button
+                          key={level}
+                          type="button"
+                          onClick={() =>
+                            handleNarrativeChange(activeNarrativeStudent.santriId, presetText)
+                          }
+                          className="text-[11px] py-1 px-2.5 rounded-md border bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {presetText}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Aksi Massal ke Predikat Sama */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border border-blue-500/20 bg-blue-50/50 dark:bg-blue-950/20 text-xs">
+                  <span className="text-[11px] text-muted-foreground">
+                    Salin teks ini ke seluruh santri berpredikat <strong>{activeNarrativeStudent.predicate}</strong> di kelas ini
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      handleApplyNarrativeToSamePredicate(
+                        activeNarrativeStudent.predicate,
+                        activeNarrativeStudent.competencyNarrative || ""
+                      )
+                    }
+                    disabled={!activeNarrativeStudent.competencyNarrative?.trim()}
+                    className="h-7 text-xs gap-1.5 shrink-0 text-blue-700 dark:text-blue-300 border-blue-500/30 hover:bg-blue-500/10"
+                  >
+                    <CopyCheckIcon className="size-3.5" />
+                    Terapkan ke Predikat {activeNarrativeStudent.predicate}
+                  </Button>
+                </div>
+              </div>
+
+              <DialogFooter className="gap-2 mt-2">
+                <Button
+                  size="sm"
+                  onClick={() => setNarrativeModalSantriId(null)}
+                  className="text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+                >
+                  Selesai
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

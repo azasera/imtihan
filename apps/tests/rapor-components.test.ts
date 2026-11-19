@@ -188,4 +188,23 @@ describe("Komponen & Tampilan E-Rapor At-Tauhid", () => {
     assert.match(modalSource, /<th[^>]*>SAS<\/th>/)
     assert.match(modalSource, /Format 3 Nilai/)
   })
+
+  it("memverifikasi penyuntingan narasi capaian kompetensi menggunakan Textarea multi-baris dan modal dialog editor lega", () => {
+    const pageSource = fs.readFileSync(
+      path.join(APPS_ROOT, "app/(main)/rapor/page.tsx"),
+      "utf8"
+    )
+
+    // Tabel lembar nilai harus menggunakan Textarea (bukan Input satu baris)
+    assert.match(pageSource, /<Textarea[\s\S]*?competencyNarrative/)
+    // Tombol perbesar dialog editor
+    assert.match(pageSource, /Maximize2Icon/)
+    assert.match(pageSource, /setNarrativeModalSantriId/)
+
+    // Modal dialog editor narasi
+    assert.match(pageSource, /Sunting Narasi Capaian Kompetensi/)
+    assert.match(pageSource, /handlePrevNarrative/)
+    assert.match(pageSource, /handleNextNarrative/)
+    assert.match(pageSource, /handleApplyNarrativeToSamePredicate/)
+  })
 })
