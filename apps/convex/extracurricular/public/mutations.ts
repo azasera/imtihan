@@ -580,3 +580,75 @@ export const updateGroupCoach = mutation({
     return { success: true }
   },
 })
+
+export const createGroup = mutation({
+  args: {
+    name: v.string(),
+    code: v.optional(v.string()),
+    category: v.optional(v.union(v.literal("wajib"), v.literal("pilihan"))),
+    genderRestriction: v.optional(
+      v.union(v.literal("all"), v.literal("ikhwan"), v.literal("akhwat"))
+    ),
+    description: v.optional(v.string()),
+    coaches: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          role: v.optional(v.string()),
+        })
+      )
+    ),
+    academicYear: v.optional(v.string()),
+    semester: v.optional(v.union(v.literal(1), v.literal(2))),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    const userName = identity?.name || "Pengajar/Pembina Ekskul"
+    const period = await getActiveAcademicPeriod(ctx)
+    const academicYear = args.academicYear || period.year
+    const semester = args.semester || period.semester
+
+    const trimmedName = args.name.trim()
+    if (!trimmedName) {
+      throw new Error("Nama cabang ekstrakurikuler wajib diisi.")
+    }
+
+    const code = args.code?.trim() || trimmedName
+
+    // Cek duplikasi kode cabang ekskul pada periode akademik aktif
+    const existing = await ctx.db
+      .query("extracurricularGroups")
+      .withIndex("by_code_and_period", (q) =>
+        q.eq("code", code).eq("academicYear", academicYear).eq("semester", semester)
+      )
+      .first()
+
+    if (existing) {
+      throw new Error(`Cabang ekskul dengan nama/kode "${code}" sudah terdaftar pada periode ini.`)
+    }
+
+    const coaches = args.coaches || []
+    const coachName = coaches.length > 0
+      ? coaches.map((c) => (c.role ? `${c.name} (${c.role})` : c.name)).join(", ")
+      : undefined
+
+    const now = Date.now()
+    const groupId = await ctx.db.insert("extracurricularGroups", {
+      code,
+      name: trimmedName,
+      category: args.category || "pilihan",
+      genderRestriction: args.genderRestriction || "all",
+      description: args.description?.trim() || `Kegiatan pembinaan ekstrakurikuler ${trimmedName}.`,
+      coaches,
+      coachName,
+      isActive: true,
+      academicYear,
+      semester,
+      createdAt: now,
+      updatedAt: now,
+      updatedBy: userName,
+    })
+
+    return { success: true, groupId }
+  },
+})

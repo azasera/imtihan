@@ -115,7 +115,7 @@ export default function RaporPage() {
     const fallbackMap: Record<Institution, string[]> = {
       SMPITA: ["7A", "7B", "8A", "8B", "9A", "9B", "VII A", "VII B", "VIII A", "VIII B", "IX A", "IX B"],
       SMAITA: ["10A", "10B", "11A", "11B", "12A", "12B", "X A", "X B", "XI A", "XI B", "XII A", "XII B"],
-      MTA: ["MTA 1", "MTA 2", "MTA 3", "MTA 4"],
+      MTA: ["MTA 1", "MTA 2", "MTA 3", "MTA 4", "MTA 5", "MTA 6"],
     }
     return fallbackMap[selectedInstitution] || fallbackMap.SMPITA
   }, [dbClasses, selectedInstitution])

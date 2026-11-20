@@ -225,6 +225,9 @@ export const OFFICIAL_CLASSES = [
   "MTA 1",
   "MTA 2",
   "MTA 3",
+  "MTA 4",
+  "MTA 5",
+  "MTA 6",
 ] as const
 
 export function formatClassDisplay(className: string): string {

@@ -9,6 +9,7 @@ const {
   EXTRACURRICULAR_PREDICATES,
   getExtracurricularNarrative,
   normalizeEkskulName,
+  OFFICIAL_CLASSES,
 } = (await import(
   new URL("../lib/extracurricular-constants.ts", import.meta.url).href
 )) as typeof import("../lib/extracurricular-constants")
@@ -127,5 +128,47 @@ describe("Fitur Pengelolaan & Penilaian Ekstrakurikuler Rapor", () => {
     assert.match(pageSource, /handleAddOptionalEkskul/)
     assert.match(pageSource, /handleRemoveEkskul/)
     assert.match(pageSource, /EXTRACURRICULAR_PREDICATES/)
+  })
+
+  it("memverifikasi OFFICIAL_CLASSES mencakup seluruh rombel SMP, SMA, dan MTA 1 s.d. MTA 6", () => {
+    const mtaClasses = OFFICIAL_CLASSES.filter((c) => c.startsWith("MTA"))
+    assert.deepEqual(mtaClasses, [
+      "MTA 1",
+      "MTA 2",
+      "MTA 3",
+      "MTA 4",
+      "MTA 5",
+      "MTA 6",
+    ])
+    // Memastikan kelas SMP dan SMA juga ada
+    assert.ok(OFFICIAL_CLASSES.includes("7A"))
+    assert.ok(OFFICIAL_CLASSES.includes("9C"))
+    assert.ok(OFFICIAL_CLASSES.includes("10A"))
+    assert.ok(OFFICIAL_CLASSES.includes("12B"))
+  })
+
+  it("memverifikasi mutasi createGroup di Convex dan komponen CreateGroupModal", () => {
+    const mutationsSource = fs.readFileSync(
+      path.join(APPS_ROOT, "convex/extracurricular/public/mutations.ts"),
+      "utf8"
+    )
+
+    assert.match(mutationsSource, /export const createGroup = mutation\(/)
+    assert.match(mutationsSource, /name:\s*v\.string\(\)/)
+    assert.match(mutationsSource, /category:\s*v\.optional\(\s*v\.union/)
+    assert.match(mutationsSource, /coaches:\s*v\.optional\(/)
+
+    const modalPath = path.join(APPS_ROOT, "components/ekstrakurikuler/CreateGroupModal.tsx")
+    assert.ok(fs.existsSync(modalPath), "File CreateGroupModal.tsx harus ada")
+    const modalSource = fs.readFileSync(modalPath, "utf8")
+    assert.match(modalSource, /export function CreateGroupModal/)
+    assert.match(modalSource, /createGroupMutation/)
+    assert.match(modalSource, /ROLE_PRESETS/)
+
+    const pagePath = path.join(APPS_ROOT, "app/(main)/ekstrakurikuler/page.tsx")
+    const pageSource = fs.readFileSync(pagePath, "utf8")
+    assert.match(pageSource, /CreateGroupModal/)
+    assert.match(pageSource, /isCreateGroupOpen/)
+    assert.match(pageSource, /Tambah Cabang Ekskul/)
   })
 })

@@ -37,6 +37,7 @@ import {
   FilterIcon,
   CheckCircle2Icon,
   SparklesIcon,
+  PlusIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -49,6 +50,7 @@ import { EKSKUL_ROSTER_DATA } from "@/lib/extracurricular-roster"
 import { EditCoachModal } from "@/components/ekstrakurikuler/EditCoachModal"
 import { AddMemberModal } from "@/components/ekstrakurikuler/AddMemberModal"
 import { TransferMemberModal } from "@/components/ekstrakurikuler/TransferMemberModal"
+import { CreateGroupModal } from "@/components/ekstrakurikuler/CreateGroupModal"
 
 export default function EkstrakurikulerPage() {
   const [selectedGroupId, setSelectedGroupId] = React.useState<Id<"extracurricularGroups"> | null>(null)
@@ -57,6 +59,7 @@ export default function EkstrakurikulerPage() {
   const [selectedGender, setSelectedGender] = React.useState("ALL")
 
   // Modals state
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = React.useState(false)
   const [isEditCoachOpen, setIsEditCoachOpen] = React.useState(false)
   const [isAddMemberOpen, setIsAddMemberOpen] = React.useState(false)
   const [transferringMember, setTransferringMember] = React.useState<{
@@ -197,6 +200,15 @@ export default function EkstrakurikulerPage() {
           )}
 
           <Button
+            size="sm"
+            onClick={() => setIsCreateGroupOpen(true)}
+            className="text-xs gap-1.5 h-8 font-medium bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs"
+          >
+            <PlusIcon className="size-3.5" />
+            Tambah Cabang Ekskul
+          </Button>
+
+          <Button
             variant="outline"
             size="sm"
             onClick={handleSeedInitialRoster}
@@ -212,10 +224,22 @@ export default function EkstrakurikulerPage() {
 
       {/* 1. Bilah Tabs 2 Baris Cabang Ekskul di Bagian Atas */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Daftar Cabang Ekstrakurikuler ({groups.length})
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Daftar Cabang Ekstrakurikuler ({groups.length})
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsCreateGroupOpen(true)}
+              className="text-xs h-6.5 px-2 gap-1 font-medium border-emerald-600/30 text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+              title="Buka cabang ekskul baru"
+            >
+              <PlusIcon className="size-3" />
+              Tambah
+            </Button>
+          </div>
           {selectedGroup && (
             <span className="text-xs text-muted-foreground hidden sm:inline">
               Kelompok aktif: <strong className="text-foreground">{selectedGroup.name}</strong> ({selectedGroup.memberCount} santri)
@@ -581,6 +605,15 @@ export default function EkstrakurikulerPage() {
         </div>
 
       {/* Modals */}
+      <CreateGroupModal
+        isOpen={isCreateGroupOpen}
+        onClose={() => setIsCreateGroupOpen(false)}
+        onSuccess={(newGroupId, groupName) => {
+          setSelectedGroupId(newGroupId)
+          toast.success(`Cabang ekskul ${groupName} berhasil ditambahkan!`)
+        }}
+      />
+
       <EditCoachModal
         isOpen={isEditCoachOpen}
         onClose={() => setIsEditCoachOpen(false)}
