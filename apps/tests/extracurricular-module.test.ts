@@ -145,4 +145,16 @@ describe("Modul Terpusat Manajemen Kelompok & Anggota Ekstrakurikuler", () => {
     assert.match(pageSource, /selectedGroup\.coaches/)
     assert.doesNotMatch(pageSource, /NIY:\s*\$\{selectedGroup\.coachNiy\}/)
   })
+
+  it("memverifikasi tampilan cabang ekskul menggunakan sistem tabs bagian atas responsif 2 baris tanpa scroll", () => {
+    const pageSource = fs.readFileSync(
+      path.join(APPS_ROOT, "app/(main)/ekstrakurikuler/page.tsx"),
+      "utf8"
+    )
+
+    // Memastikan tabs ditaruh di atas dengan grid 8 kolom pada desktop (2 baris untuk 16 ekskul)
+    assert.match(pageSource, /lg:grid-cols-8/)
+    assert.match(pageSource, /Daftar Cabang Ekstrakurikuler/)
+    assert.match(pageSource, /group\.memberCount/)
+  })
 })

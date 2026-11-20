@@ -210,98 +210,112 @@ export default function EkstrakurikulerPage() {
         </div>
       </div>
 
-      {/* Main Grid: Master List (Kiri) & Roster Anggota (Kanan) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* Kolom Kiri: Daftar Kelompok Ekskul */}
-        <div className="lg:col-span-4 space-y-2">
-          <div className="flex items-center justify-between pb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Daftar Cabang Ekskul ({groups.length})
+      {/* 1. Bilah Tabs 2 Baris Cabang Ekskul di Bagian Atas */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Daftar Cabang Ekstrakurikuler ({groups.length})
+          </span>
+          {selectedGroup && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Kelompok aktif: <strong className="text-foreground">{selectedGroup.name}</strong> ({selectedGroup.memberCount} santri)
             </span>
-          </div>
-
-          <div className="space-y-1.5 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
-            {groupsData === undefined ? (
-              <div className="p-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                <Loader2Icon className="size-4 animate-spin" />
-                Memuat daftar ekskul...
-              </div>
-            ) : groups.length === 0 ? (
-              <Card className="p-6 text-center text-xs text-muted-foreground">
-                <p className="mb-2">Belum ada kelompok ekstrakurikuler yang diinisialisasi.</p>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={handleSeedInitialRoster}
-                  disabled={isSyncingInitial}
-                  className="text-xs gap-1.5"
-                >
-                  <SparklesIcon className="size-3.5" />
-                  Inisialisasi 15 Kelompok Ekskul
-                </Button>
-              </Card>
-            ) : (
-              groups.map((group) => {
-                const isSelected = selectedGroup?._id === group._id
-                const isWajib = group.category === "wajib"
-                return (
-                  <button
-                    key={group._id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedGroupId(group._id)
-                      setSearch("")
-                    }}
-                    className={cn(
-                      "w-full text-left p-3 rounded-lg border transition-all text-xs flex flex-col gap-1.5",
-                      isSelected
-                        ? "bg-primary/10 border-primary text-foreground shadow-xs font-medium"
-                        : "bg-card hover:bg-muted/50 border-border text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="font-bold text-sm truncate">{group.name}</span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] px-1.5 py-0 h-4 font-normal",
-                            isWajib
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700"
-                              : "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-700"
-                          )}
-                        >
-                          {isWajib ? "Wajib" : "Pilihan"}
-                        </Badge>
-                      </div>
-                      <Badge variant="secondary" className="text-[11px] px-2 py-0 h-5 font-semibold shrink-0">
-                        {group.memberCount} Santri
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span className="truncate">
-                        {group.coaches && group.coaches.length > 0
-                          ? `Pembina: ${group.coaches.map((c: { name: string }) => c.name).join(", ")}`
-                          : group.coachName
-                            ? `Pembina: ${group.coachName}`
-                            : "Belum ada pembina"}
-                      </span>
-                      {group.genderRestriction && group.genderRestriction !== "all" && (
-                        <span className="capitalize text-[10px] bg-muted px-1.5 py-0.5 rounded">
-                          {group.genderRestriction}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                )
-              })
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Kolom Kanan: Roster Peserta Kelompok Terpilih */}
-        <div className="lg:col-span-8 space-y-3">
+        {groupsData === undefined ? (
+          <div className="p-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2 border rounded-xl bg-card">
+            <Loader2Icon className="size-4 animate-spin text-primary" />
+            Memuat daftar cabang ekskul...
+          </div>
+        ) : groups.length === 0 ? (
+          <Card className="p-6 text-center text-xs text-muted-foreground">
+            <p className="mb-2">Belum ada kelompok ekstrakurikuler yang diinisialisasi.</p>
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleSeedInitialRoster}
+              disabled={isSyncingInitial}
+              className="text-xs gap-1.5"
+            >
+              <SparklesIcon className="size-3.5" />
+              Inisialisasi 15 Kelompok Ekskul
+            </Button>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1.5">
+            {groups.map((group) => {
+              const isSelected = selectedGroup?._id === group._id
+              const isWajib = group.category === "wajib"
+              return (
+                <button
+                  key={group._id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedGroupId(group._id)
+                    setSearch("")
+                  }}
+                  className={cn(
+                    "relative flex flex-col justify-between p-2 rounded-lg border text-left transition-all duration-150 cursor-pointer select-none",
+                    isSelected
+                      ? "bg-emerald-700 text-white border-emerald-800 shadow-sm ring-2 ring-emerald-600/30 font-medium dark:bg-emerald-800 dark:border-emerald-700"
+                      : "bg-card hover:bg-muted/60 hover:border-muted-foreground/30 border-border text-foreground"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-1 w-full">
+                    <span
+                      className={cn(
+                        "font-semibold text-xs truncate leading-snug",
+                        isSelected ? "text-white" : "text-foreground"
+                      )}
+                    >
+                      {group.name}
+                    </span>
+                    {isWajib && (
+                      <span
+                        className={cn(
+                          "text-[9px] uppercase px-1 py-0.2 rounded font-bold shrink-0",
+                          isSelected
+                            ? "bg-white/20 text-white"
+                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                        )}
+                      >
+                        Wajib
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1 mt-1.5 w-full">
+                    <span
+                      className={cn(
+                        "text-[11px] font-medium",
+                        isSelected ? "text-emerald-100" : "text-muted-foreground"
+                      )}
+                    >
+                      {group.memberCount} Santri
+                    </span>
+                    {group.genderRestriction && group.genderRestriction !== "all" && (
+                      <span
+                        className={cn(
+                          "text-[9px] capitalize px-1 py-0.2 rounded shrink-0",
+                          isSelected
+                            ? "bg-white/15 text-emerald-100"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {group.genderRestriction === "ikhwan" ? "Putra" : "Putri"}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 2. Roster Peserta Kelompok Terpilih (Lebar Penuh) */}
+      <div className="space-y-3">
           {selectedGroup ? (
             <Card className="border shadow-xs">
               <CardHeader className="p-4 pb-3 border-b bg-muted/20">
@@ -561,11 +575,10 @@ export default function EkstrakurikulerPage() {
             </Card>
           ) : (
             <Card className="p-12 text-center text-xs text-muted-foreground">
-              Pilih salah satu cabang ekstrakurikuler di panel kiri.
+              Pilih salah satu cabang ekstrakurikuler di atas.
             </Card>
           )}
         </div>
-      </div>
 
       {/* Modals */}
       <EditCoachModal
