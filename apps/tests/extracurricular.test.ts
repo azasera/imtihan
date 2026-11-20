@@ -115,19 +115,16 @@ describe("Fitur Pengelolaan & Penilaian Ekstrakurikuler Rapor", () => {
     assert.match(printViewSource, /activeExtracurriculars\.map/)
   })
 
-  it("memverifikasi kontrol UI di Tab Asesmen Wali Kelas mencakup tombol sinkronisasi dan form ekskul", () => {
+  it("memverifikasi kontrol UI di Tab Asesmen Wali Kelas terhubung read-only dari Pembina Ekskul", () => {
     const pageSource = fs.readFileSync(
       path.join(APPS_ROOT, "app/(main)/rapor/page.tsx"),
       "utf8"
     )
 
-    assert.match(pageSource, /Sinkronkan Ekskul dari Excel/)
-    assert.match(pageSource, /handleSyncAllExtracurricularsFromExcel/)
-    assert.match(pageSource, /Penilaian Ekstrakurikuler/)
-    assert.match(pageSource, /handleEkskulScoreChange/)
-    assert.match(pageSource, /handleAddOptionalEkskul/)
-    assert.match(pageSource, /handleRemoveEkskul/)
-    assert.match(pageSource, /EXTRACURRICULAR_PREDICATES/)
+    assert.match(pageSource, /Penilaian Ekstrakurikuler \(Capaian Rapor\)/)
+    assert.match(pageSource, /Diisi oleh Pembina Ekskul/)
+    assert.match(pageSource, /Penilaian dan koreksi capaian ekstrakurikuler sepenuhnya dilakukan oleh Pembina di menu Ekstrakurikuler/)
+    assert.match(pageSource, /href="\/ekstrakurikuler"/)
   })
 
   it("memverifikasi OFFICIAL_CLASSES mencakup seluruh rombel SMP, SMA, dan MTA 1 s.d. MTA 6", () => {

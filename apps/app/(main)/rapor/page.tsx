@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useQuery, useMutation, useAction } from "convex/react"
 import {
   GraduationCapIcon,
@@ -25,6 +26,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyCheckIcon,
+  ExternalLinkIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -1494,18 +1496,14 @@ export default function RaporPage() {
                     Pilih santri di kelas {selectedClass} untuk mengisi rekap kehadiran, capaian Hadits Arba&apos;in, ekstrakurikuler, dan catatan wali kelas.
                   </CardDescription>
                 </div>
-                <Button
-                  type="button"
-                  suppressHydrationWarning
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSyncAllExtracurricularsFromExcel}
-                  disabled={isSyncingEkskul || editableGrades.length === 0}
-                  className="gap-2 text-xs border-emerald-600/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                <Link
+                  href="/ekstrakurikuler"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-emerald-600/30 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50 transition-colors shadow-2xs"
+                  title="Buka menu Kelola Ekstrakurikuler untuk manajemen kelompok dan penilaian pembina"
                 >
-                  <RefreshCwIcon className={cn("size-3.5", isSyncingEkskul && "animate-spin")} />
-                  Sinkronkan Ekskul dari Excel
-                </Button>
+                  <AwardIcon className="size-3.5 text-emerald-700 dark:text-emerald-300" />
+                  <span>Kelola di Menu Ekskul</span>
+                </Link>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1621,119 +1619,105 @@ export default function RaporPage() {
                 </div>
               </div>
 
-              {/* Penilaian Ekstrakurikuler (Wajib: Rohis, Pilihan: Sesuai Minat/Bakat) */}
-              <div className="p-3 bg-muted/40 rounded-lg border space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              {/* Penilaian Ekstrakurikuler (Diisi Langsung oleh Pembina Ekskul) */}
+              <div className="p-3.5 bg-muted/30 rounded-lg border space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2.5">
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5">
-                      <AwardIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span>Penilaian Ekstrakurikuler (Wajib &amp; Pilihan)</span>
-                    </h4>
-                    <p className="text-[11px] text-muted-foreground">
-                      Pilihan predikat A (Sangat Baik), B (Baik), C (Cukup). Mengubah predikat otomatis memperbarui deskripsi capaian baku.
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 text-foreground">
+                        <AwardIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Penilaian Ekstrakurikuler (Capaian Rapor)</span>
+                      </h4>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300"
+                      >
+                        Diisi oleh Pembina Ekskul
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Penilaian dan koreksi capaian ekstrakurikuler sepenuhnya dilakukan oleh Pembina di menu Ekstrakurikuler dan otomatis tercetak di rapor.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      suppressHydrationWarning
-                      aria-label="Tambah Ekskul Pilihan"
-                      className="h-7 px-2 border rounded bg-background text-foreground text-[11px]"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          handleAddOptionalEkskul(e.target.value)
-                          e.target.value = ""
-                        }
-                      }}
-                      defaultValue=""
-                    >
-                      <option value="" disabled>
-                        + Tambah Ekskul Pilihan
-                      </option>
-                      {Object.keys(OFFICIAL_EXTRACURRICULARS)
-                        .filter((k) => k !== "Rohis")
-                        .map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
+
+                  <Link
+                    href="/ekstrakurikuler"
+                    className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded border border-emerald-600/30 bg-background text-[11px] font-medium text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors shrink-0 shadow-2xs"
+                    title="Buka menu Kelola Ekstrakurikuler"
+                  >
+                    <ExternalLinkIcon className="size-3" />
+                    <span>Kelola di Menu Ekskul</span>
+                  </Link>
                 </div>
 
-                <div className="space-y-3 pt-1">
-                  {extracurriculars.map((ekskul, idx) => {
-                    const isRohis = ekskul.name.toLowerCase() === "rohis"
-                    return (
-                      <div
-                        key={`${ekskul.name}-${idx}`}
-                        className="p-2.5 rounded-md border bg-background/80 dark:bg-background/40 space-y-2"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-foreground">{ekskul.name}</span>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-[10px] px-1.5 py-0 h-4.5 font-medium",
-                                isRohis
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700"
-                                  : "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-700"
-                              )}
-                            >
-                              {isRohis ? "Ekskul Wajib" : "Ekskul Pilihan"}
-                            </Badge>
-                          </div>
+                <div className="space-y-2.5 pt-0.5">
+                  {extracurriculars.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-muted-foreground border rounded-md bg-background/50">
+                      Belum ada data kegiatan ekstrakurikuler yang terdaftar untuk santri ini.
+                    </div>
+                  ) : (
+                    extracurriculars.map((ekskul, idx) => {
+                      const isRohis = ekskul.name.toLowerCase() === "rohis"
+                      const scoreLabel =
+                        ekskul.score === "A"
+                          ? "Sangat Baik"
+                          : ekskul.score === "B"
+                            ? "Baik"
+                            : ekskul.score === "C"
+                              ? "Cukup"
+                              : "-"
 
-                          <div className="flex items-center gap-2">
-                            <label className="text-[11px] text-muted-foreground font-medium">Predikat:</label>
-                            <select
-                              suppressHydrationWarning
-                              aria-label={`Predikat ${ekskul.name}`}
-                              value={ekskul.score}
-                              onChange={(e) =>
-                                handleEkskulScoreChange(idx, e.target.value as "A" | "B" | "C")
-                              }
-                              className="h-7 w-32 px-2 border rounded font-semibold bg-background text-foreground text-xs"
-                            >
-                              {EXTRACURRICULAR_PREDICATES.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
-
-                            {!isRohis && (
-                              <Button
-                                type="button"
-                                suppressHydrationWarning
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveEkskul(idx)}
-                                title="Hapus ekskul ini dari santri"
-                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                      return (
+                        <div
+                          key={`${ekskul.name}-${idx}`}
+                          className="p-3 rounded-lg border bg-background/90 dark:bg-background/50 space-y-2 shadow-2xs"
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-foreground">{ekskul.name}</span>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] px-1.5 py-0 h-4.5 font-medium",
+                                  isRohis
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700"
+                                    : "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-700"
+                                )}
                               >
-                                <Trash2Icon className="size-3.5" />
-                              </Button>
-                            )}
+                                {isRohis ? "Ekskul Wajib" : "Ekskul Pilihan"}
+                              </Badge>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] text-muted-foreground">Predikat:</span>
+                              <Badge
+                                variant="secondary"
+                                className={cn(
+                                  "font-bold text-xs px-2 py-0.5",
+                                  ekskul.score === "A"
+                                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                    : ekskul.score === "B"
+                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                                      : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                )}
+                              >
+                                {ekskul.score} ({scoreLabel})
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] text-muted-foreground block mb-0.5 font-medium">
+                              Deskripsi Capaian Rapor ({ekskul.name}):
+                            </span>
+                            <p className="text-xs p-2 rounded-md bg-muted/40 border border-muted-foreground/15 text-foreground leading-relaxed">
+                              {ekskul.description || "-"}
+                            </p>
                           </div>
                         </div>
-
-                        <div>
-                          <label className="text-[10px] text-muted-foreground block mb-0.5">
-                            Deskripsi Capaian Rapor ({ekskul.name}):
-                          </label>
-                          <textarea
-                            suppressHydrationWarning
-                            rows={2}
-                            value={ekskul.description}
-                            onChange={(e) => handleEkskulDescChange(idx, e.target.value)}
-                            className="w-full p-1.5 border rounded text-xs bg-background text-foreground resize-none leading-relaxed"
-                            placeholder={`Tulis deskripsi capaian ${ekskul.name}...`}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </div>
               </div>
 
