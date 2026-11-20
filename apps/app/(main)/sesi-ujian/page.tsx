@@ -499,7 +499,7 @@ export default function SesiUjianPage() {
               </Button>
             }
           />
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-xl">
+          <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-xl">
             <DialogHeader>
               <DialogTitle className="font-heading">Jadwal Sesi Ujian Baru</DialogTitle>
               <DialogDescription>

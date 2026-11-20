@@ -168,13 +168,13 @@ export function GradeImportModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-            <FileSpreadsheetIcon className="size-5 text-emerald-600" />
-            Import Nilai dari Excel
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
+        <DialogHeader className="pr-7">
+          <DialogTitle className="flex items-center gap-2 text-sm sm:text-base font-semibold leading-tight min-w-0">
+            <FileSpreadsheetIcon className="size-5 text-emerald-600 shrink-0" />
+            <span className="truncate">Import Nilai dari Excel</span>
           </DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate sm:whitespace-normal">
             {subjectName} ({subjectCode}) — Kelas {className}
           </DialogDescription>
         </DialogHeader>

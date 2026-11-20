@@ -2331,7 +2331,7 @@ export default function RaporPage() {
           if (!open) setNarrativeModalSantriId(null)
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
           {activeNarrativeStudent && (
             <>
               <DialogHeader>

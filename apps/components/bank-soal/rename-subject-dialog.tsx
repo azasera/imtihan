@@ -91,7 +91,7 @@ export function RenameSubjectDialog({ subject, onRename }: RenameSubjectDialogPr
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between gap-2 mr-6">
             <DialogTitle className="font-heading text-base">Sunting Mata Pelajaran</DialogTitle>

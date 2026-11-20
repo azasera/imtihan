@@ -180,17 +180,17 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[540px]">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-full bg-primary/10 text-primary">
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-[520px] max-h-[90dvh] overflow-y-auto">
+        <DialogHeader className="pr-7">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-2 rounded-full bg-primary/10 text-primary shrink-0">
               <UserCheckIcon className="size-5" />
             </div>
-            <div>
-              <DialogTitle className="text-base font-semibold">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-sm sm:text-base font-semibold leading-tight">
                 Pengaturan Pembina Ekstrakurikuler
               </DialogTitle>
-              <DialogDescription className="text-xs">
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 Kelompok: <span className="font-semibold text-foreground">{group.name}</span>
               </DialogDescription>
             </div>
@@ -218,14 +218,14 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
                 {coaches.map((c, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-2 rounded-md border bg-card hover:bg-muted/30 transition-colors"
+                    className="flex items-center justify-between p-2 rounded-md border bg-card hover:bg-muted/30 transition-colors gap-2"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div className="size-6 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                         <UserIcon className="size-3.5" />
                       </div>
-                      <div className="flex items-center gap-1.5 truncate">
-                        <span className="text-xs font-medium text-foreground truncate">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
+                        <span className="text-xs font-medium text-foreground break-words">
                           {c.name}
                         </span>
                         {c.role && (
@@ -244,7 +244,7 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
                       variant="ghost"
                       size="icon"
                       onClick={() => handleRemoveCoach(idx)}
-                      className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
                       title="Hapus pembina ini"
                     >
                       <Trash2Icon className="size-3.5" />
@@ -257,16 +257,16 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
 
           {/* Form Penambahan Pembina Baru */}
           <div className="rounded-lg border p-3 bg-muted/20 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-1 flex-wrap">
               <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <ShieldIcon className="size-3.5 text-primary" />
+                <ShieldIcon className="size-3.5 text-primary shrink-0" />
                 Tambah Pembina
               </span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-6 text-[11px] px-2 text-primary hover:bg-primary/10 gap-1 font-medium"
+                className="h-6 text-[11px] px-1.5 text-primary hover:bg-primary/10 gap-1 font-medium"
                 onClick={() => {
                   setIsManualInput(!isManualInput)
                   setSelectedTeacherName("")
@@ -336,22 +336,20 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
               )}
 
               {/* Pilihan Peran Pembina */}
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Peran (opsional, contoh: Pembina Ikhwan / Pelatih)..."
-                    value={coachRole}
-                    onChange={(e) => setCoachRole(e.target.value)}
-                    className="text-xs h-8 bg-background"
-                  />
-                </div>
-                <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+              <div className="space-y-1.5">
+                <Input
+                  placeholder="Peran (opsional, contoh: Pembina Ikhwan / Pelatih)..."
+                  value={coachRole}
+                  onChange={(e) => setCoachRole(e.target.value)}
+                  className="text-xs h-8 bg-background w-full"
+                />
+                <div className="flex flex-wrap gap-1 pt-0.5">
                   {ROLE_PRESETS.map((preset) => (
                     <button
                       key={preset}
                       type="button"
                       onClick={() => setCoachRole(preset)}
-                      className={`text-[10px] px-2 py-1 rounded border transition-colors whitespace-nowrap ${
+                      className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
                         coachRole === preset
                           ? "bg-primary text-primary-foreground border-primary"
                           : "bg-background hover:bg-muted text-muted-foreground"
@@ -369,7 +367,7 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
                   variant="secondary"
                   size="sm"
                   onClick={handleAddCoach}
-                  className="text-xs h-8 gap-1.5 font-medium"
+                  className="text-xs h-8 gap-1.5 font-medium w-full sm:w-auto"
                 >
                   <PlusIcon className="size-3.5" />
                   Tambahkan ke Daftar
@@ -393,14 +391,14 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
             />
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-2 border-t">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onClose}
               disabled={isSubmitting}
-              className="text-xs"
+              className="text-xs w-full sm:w-auto"
             >
               Batal
             </Button>
@@ -408,7 +406,7 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
               type="submit"
               size="sm"
               disabled={isSubmitting}
-              className="text-xs gap-1.5 font-medium bg-emerald-700 hover:bg-emerald-800 text-white"
+              className="text-xs gap-1.5 font-medium bg-emerald-700 hover:bg-emerald-800 text-white w-full sm:w-auto"
             >
               {isSubmitting && <Loader2Icon className="size-3.5 animate-spin" />}
               Simpan Perubahan

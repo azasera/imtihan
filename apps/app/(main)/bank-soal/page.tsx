@@ -258,7 +258,7 @@ function BankSoalContent() {
               }
             }}
           >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-heading">Paket Bank Soal Baru</DialogTitle>
               <DialogDescription>

@@ -98,17 +98,17 @@ export function TransferMemberModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-[480px] max-h-[90dvh] overflow-y-auto">
+        <DialogHeader className="pr-7">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
               <ArrowRightLeftIcon className="size-5" />
             </div>
-            <div>
-              <DialogTitle className="text-base font-semibold">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-sm sm:text-base font-semibold leading-tight">
                 Pindah Kelompok Ekstrakurikuler
               </DialogTitle>
-              <DialogDescription className="text-xs">
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate sm:whitespace-normal">
                 Mutasi peserta dari satu cabang ke cabang ekskul pilihan lainnya
               </DialogDescription>
             </div>
@@ -184,14 +184,14 @@ export function TransferMemberModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-2 border-t">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onClose}
             disabled={isSubmitting}
-            className="text-xs"
+            className="text-xs w-full sm:w-auto"
           >
             Batal
           </Button>
@@ -200,7 +200,7 @@ export function TransferMemberModal({
             size="sm"
             disabled={isSubmitting || !targetGroupId}
             onClick={handleTransfer}
-            className="text-xs gap-1.5"
+            className="text-xs gap-1.5 w-full sm:w-auto"
           >
             {isSubmitting && <Loader2Icon className="size-3.5 animate-spin" />}
             Proses Pindah Ekskul

@@ -245,13 +245,13 @@ export function ClassSettingsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pb-2 border-b">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-5 w-5 text-primary" />
-            <DialogTitle className="text-lg font-semibold">Pengaturan Wali Kelas & Tanggal Dokumen</DialogTitle>
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-xl max-h-[90dvh] overflow-y-auto">
+        <DialogHeader className="pb-2 border-b pr-7">
+          <div className="flex items-center gap-2 min-w-0">
+            <SlidersHorizontal className="size-5 text-primary shrink-0" />
+            <DialogTitle className="text-base sm:text-lg font-semibold leading-tight">Pengaturan Wali Kelas & Tanggal Dokumen</DialogTitle>
           </div>
-          <DialogDescription className="text-xs text-muted-foreground">
+          <DialogDescription className="text-xs text-muted-foreground mt-0.5">
             Atur identitas Guru Kelas, tanggal cetak dokumen rapor, dan Kepala Sekolah per rombel untuk Tahun Ajaran {academicYear} Semester {semester}.
           </DialogDescription>
         </DialogHeader>
