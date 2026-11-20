@@ -571,8 +571,8 @@ export const updateGroupCoach = mutation({
     await ctx.db.patch(args.groupId, {
       coaches,
       coachName: coachName || undefined,
-      coachNiy: args.coachNiy?.trim() || undefined,
-      description: args.description?.trim() || group.description,
+      coachNiy: args.coachNiy !== undefined ? args.coachNiy.trim() || undefined : group.coachNiy,
+      description: args.description !== undefined ? args.description.trim() || undefined : group.description,
       updatedBy: userName,
       updatedAt: now,
     })

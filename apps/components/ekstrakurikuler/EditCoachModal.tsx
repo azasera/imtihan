@@ -148,10 +148,21 @@ export function EditCoachModal({ isOpen, onClose, group }: EditCoachModalProps) 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+
+    // Sertakan otomatis nama pembina jika masih berada di input tetapi belum sempat diklik "Tambahkan"
+    let finalCoaches = [...coaches]
+    const pendingName = isManualInput ? manualCoachName.trim() : selectedTeacherName.trim()
+    if (pendingName && !finalCoaches.some((c) => c.name.toLowerCase() === pendingName.toLowerCase())) {
+      finalCoaches.push({
+        name: pendingName,
+        role: coachRole.trim() || undefined,
+      })
+    }
+
     try {
       await updateCoachMutation({
         groupId: group._id,
-        coaches: coaches.map((c) => ({
+        coaches: finalCoaches.map((c) => ({
           name: c.name.trim(),
           role: c.role?.trim() || undefined,
         })),
